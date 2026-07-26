@@ -47,8 +47,26 @@ uv run pytest
 Northbound Media's funnel (ad spend, leads, follow-up outcomes, closed deals,
 lifetime value, upsells, referrals). See `docs/` for the full project brief.
 
+The CSV is the source file, but the running app never reads it directly — it's
+loaded once into Supabase Postgres and served from there.
+
+## Database (Supabase)
+
+- `sql/schema.sql` — defines the `customers` table and enables Row Level
+  Security with a `select` policy restricted to authenticated users.
+- `scripts/load_csv_to_supabase.py` — repeatable loader: reads the CSV,
+  clears the table, and re-inserts a fresh copy via the service-role client.
+  Re-run any time the CSV changes: `uv run python -m scripts.load_csv_to_supabase`.
+
+## API
+
+- `GET /health` — health check
+- `GET /customers?limit=50&offset=0` — paginated customer records from Supabase
+- `GET /statistics` — aggregate metrics (conversion rate, referral rate, upsell rate, avg profit/LTV) computed from Supabase
+
 ## Status
 
-Early scaffold: FastAPI skeleton with a `/health` endpoint and Supabase client
-wiring are in place. Data exploration, the six analytical work packages, the
-Supabase schema/auth, and the frontend dashboard are in progress.
+FastAPI backend live on Railway, reading from a real Supabase Postgres
+database (`customers` table, RLS enabled). Data exploration, the six
+analytical work packages, Supabase Auth, and the frontend dashboard are in
+progress.

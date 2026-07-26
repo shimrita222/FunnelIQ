@@ -10,4 +10,7 @@ wheels/
 .venv
 
 # .env file
-.env 
+.env
+
+# Supabase CLI local cache
+supabase/.temp/
