@@ -19,7 +19,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Tests      | pytest                                  | `tests/`     |
 
 - **GitHub**: source of truth + CI (`.github/workflows/ci.yml` runs lint and tests on every push).
-- **Supabase**: Postgres holds the dataset (`sql/schema.sql`, loaded via a repeatable script); Supabase Auth gates the app behind a login screen; Row Level Security restricts data reads to authenticated users.
+- **Supabase**: Postgres holds the dataset (`sql/schema.sql`, loaded via a repeatable script); Supabase Auth gates the app behind a login screen (`frontend/login.html` + `backend/auth.py`); Row Level Security restricts data reads to authenticated users.
 - **Railway**: hosts the FastAPI service on a public URL, redeploying on every push to `main`.
 
 ## Local setup
@@ -61,12 +61,33 @@ loaded once into Supabase Postgres and served from there.
 ## API
 
 - `GET /health` — health check
-- `GET /customers?limit=50&offset=0` — paginated customer records from Supabase
-- `GET /statistics` — aggregate metrics (conversion rate, referral rate, upsell rate, avg profit/LTV) computed from Supabase
+- `GET /login`, `GET /dashboard` — the frontend pages (see Authentication below)
+- `GET /customers?limit=50&offset=0` — paginated customer records from Supabase (auth required)
+- `GET /statistics` — aggregate metrics (conversion rate, referral rate, upsell rate, avg profit/LTV) computed from Supabase (auth required)
+
+## Authentication
+
+FunnelIQ is an internal tool: `/customers` and `/statistics` require a valid
+Supabase session and return `401` without one.
+
+- **Accounts are admin-provisioned, not self-signup.** Create a teammate's
+  login with `uv run python -m scripts.create_user <email> <password>`.
+- **`frontend/login.html`** — email/password sign-in via `supabase-js`, using
+  the public anon key (`frontend/config.js` — safe to commit, it's designed
+  to be public and is scoped by RLS). On success, redirects to `/dashboard`.
+- **`frontend/dashboard.html`** — reads the Supabase session client-side; no
+  session redirects back to `/login`. With a session, it calls `/customers`
+  and `/statistics` with `Authorization: Bearer <access_token>`. "Sign out"
+  clears the session and redirects to `/login`.
+- **Backend enforcement** (`backend/auth.py`): every protected endpoint
+  depends on `get_current_user`, which validates the bearer token against
+  Supabase Auth — so the API itself is gated, not just the page.
+- **Key split**: the anon key is the only Supabase credential in `frontend/`;
+  the service-role key (`backend/supabase_client.py`) never leaves the server.
 
 ## Status
 
 FastAPI backend live on Railway, reading from a real Supabase Postgres
-database (`customers` table, RLS enabled). Data exploration, the six
-analytical work packages, Supabase Auth, and the frontend dashboard are in
-progress.
+database (`customers` table, RLS enabled) behind Supabase Auth. Data
+exploration, the six analytical work packages, and the rest of the dashboard
+UI are in progress.

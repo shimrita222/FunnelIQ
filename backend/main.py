@@ -1,9 +1,13 @@
 from fastapi import Depends, FastAPI, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
+from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
 from supabase import Client
 
 app = FastAPI(title="FunnelIQ")
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
 
 
 @app.get("/")
@@ -16,11 +20,22 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/login")
+def login_page():
+    return FileResponse("frontend/login.html")
+
+
+@app.get("/dashboard")
+def dashboard_page():
+    return FileResponse("frontend/dashboard.html")
+
+
 @app.get("/customers")
 def get_customers(
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     supabase: Client = Depends(get_supabase_admin_client),
+    _user=Depends(get_current_user),
 ):
     response = (
         supabase.table("customers")
@@ -50,7 +65,10 @@ def _fetch_all(supabase: Client, columns: str, page_size: int = 1000) -> list[di
 
 
 @app.get("/statistics")
-def get_statistics(supabase: Client = Depends(get_supabase_admin_client)):
+def get_statistics(
+    supabase: Client = Depends(get_supabase_admin_client),
+    _user=Depends(get_current_user),
+):
     rows = _fetch_all(supabase, "num_leads,closed,referred,upsell,cumulative_profit,ltv_months")
     total = len(rows)
 

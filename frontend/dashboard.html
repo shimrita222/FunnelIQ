@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>FunnelIQ — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/static/config.js"></script>
+</head>
+<body style="font-family: sans-serif; max-width: 640px; margin: 40px auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
+    <h1>FunnelIQ Dashboard</h1>
+    <button id="signout">Sign out</button>
+  </div>
+  <h2>Statistics</h2>
+  <pre id="statistics">Loading…</pre>
+  <h2>Customers (first 10)</h2>
+  <pre id="customers">Loading…</pre>
+
+  <script>
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function loadDashboard() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        window.location.href = "/login";
+        return;
+      }
+
+      const headers = { Authorization: `Bearer ${session.access_token}` };
+      const [statsRes, customersRes] = await Promise.all([
+        fetch("/statistics", { headers }),
+        fetch("/customers?limit=10", { headers }),
+      ]);
+
+      if (statsRes.status === 401 || customersRes.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+
+      document.getElementById("statistics").textContent = JSON.stringify(await statsRes.json(), null, 2);
+      document.getElementById("customers").textContent = JSON.stringify(await customersRes.json(), null, 2);
+    }
+
+    document.getElementById("signout").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      window.location.href = "/login";
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>

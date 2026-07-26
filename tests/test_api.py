@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from backend.auth import get_current_user
 from backend.main import app
 from backend.supabase_client import get_supabase_admin_client
 
@@ -37,6 +38,7 @@ def override_supabase():
 
 
 app.dependency_overrides[get_supabase_admin_client] = override_supabase
+app.dependency_overrides[get_current_user] = lambda: {"id": "test-user"}
 client = TestClient(app)
 
 
