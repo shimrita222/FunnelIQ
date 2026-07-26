@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <title>FunnelIQ — Sign in</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="/static/vendor/supabase.js"></script>
   <script src="/static/config.js"></script>
 </head>
 <body style="font-family: sans-serif; max-width: 320px; margin: 80px auto;">
@@ -16,19 +16,27 @@
   <p id="error" style="color: red;"></p>
 
   <script>
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (typeof window.supabase === "undefined") {
+      document.getElementById("error").textContent = "Failed to load the auth library. Please reload the page.";
+    } else {
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    document.getElementById("login-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        document.getElementById("error").textContent = error.message;
-        return;
-      }
-      window.location.href = "/dashboard";
-    });
+      document.getElementById("login-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+        try {
+          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) {
+            document.getElementById("error").textContent = error.message;
+            return;
+          }
+          window.location.href = "/dashboard";
+        } catch (err) {
+          document.getElementById("error").textContent = "Unexpected error: " + err.message;
+        }
+      });
+    }
   </script>
 </body>
 </html>
