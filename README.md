@@ -5,7 +5,7 @@ login-gated intelligence tool: predicting customer lifetime, upsell probability,
 and a 0–100 "super customer" score, plus data-driven recommendations on
 follow-up policy and ad budget allocation.
 
-Live URL: _TBD (Railway)_
+Live URL: https://funnelmarketingdata-production.up.railway.app
 
 ## Architecture
 
