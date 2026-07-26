@@ -1,7 +1,8 @@
 from functools import lru_cache
 
-from backend.config import SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 from supabase import Client, create_client
+
+from backend.config import SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 
 @lru_cache
