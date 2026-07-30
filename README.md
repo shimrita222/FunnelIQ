@@ -14,6 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
+| Analysis   | pandas / seaborn exploration & cleaning | `exploration_and_cleaning.py` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -49,6 +50,34 @@ lifetime value, upsells, referrals). See `docs/` for the full project brief.
 
 The CSV is the source file, but the running app never reads it directly — it's
 loaded once into Supabase Postgres and served from there.
+
+## Analysis (Package 1 — Exploration & Cleaning)
+
+`exploration_and_cleaning.py` is a `# %%` cell-marker script (runs cell-by-cell in
+VS Code / Jupyter, or end-to-end as a plain script) that turns the raw CSV into a
+clean dataset for the modeling packages that follow. No modeling, train/test
+splitting, scaling, or encoding happens here — that's out of scope for this package.
+
+```bash
+uv run python exploration_and_cleaning.py
+```
+
+Steps performed, in order: load & inspect the raw data, assess data quality (missing
+values, duplicates, dtype consistency), impute missing values (median for numeric
+columns, mode for the one categorical column), drop duplicate rows, validate business
+logic (lead-count sums, closed/not_closed vs. leads_answered, non-increasing
+follow-up counts), analyze outliers in the continuous business variables (IQR method,
+reported but not auto-removed), and run the required exploratory analysis
+(correlation with `cumulative_profit`, `ad_budget` vs. `num_leads`, and conversion
+rate by budget tier). The result is saved to `data/cleaned_funnel_data.csv` —
+the original `data/funnel_marketing_data.csv` is never modified.
+
+**Findings from the current run:** 33 missing values across 2 columns (imputed), 10
+exact duplicate rows (removed), 0 business-logic violations, no outliers requiring
+removal (they read as genuine business variance, not data errors). `ad_budget` and
+`num_leads` are strongly correlated (Pearson r ≈ 0.98), but the leads-per-shekel ratio
+drops sharply from the bottom to the top budget quartile — a clear diminishing-returns
+signal Northbound should factor into budget-allocation decisions (see Package 6).
 
 ## Database (Supabase)
 
@@ -88,6 +117,7 @@ Supabase session and return `401` without one.
 ## Status
 
 FastAPI backend live on Railway, reading from a real Supabase Postgres
-database (`customers` table, RLS enabled) behind Supabase Auth. Data
-exploration, the six analytical work packages, and the rest of the dashboard
-UI are in progress.
+database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
+(exploration & cleaning) is done — see `exploration_and_cleaning.py` and
+`data/cleaned_funnel_data.csv`. Packages 2–6 (the modeling work) and the rest
+of the dashboard UI are in progress.
