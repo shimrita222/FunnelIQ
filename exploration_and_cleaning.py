@@ -324,7 +324,14 @@ print(f"Avg leads per unit of ad spend — top budget quartile:    {high_budget_
 # ### C. Conversion rate by budget tier
 
 # %%
-df_clean["conversion_rate"] = df_clean["closed"] / df_clean["num_leads"]
+# Computed into a standalone frame — not attached to df_clean — so the saved
+# cleaned dataset stays generic (original columns only) for every later package.
+conversion_analysis = pd.DataFrame(
+    {
+        "conversion_rate": df_clean["closed"] / df_clean["num_leads"],
+        "ad_budget": df_clean["ad_budget"],
+    }
+)
 
 
 def assign_budget_tier(ad_budget: float) -> str:
@@ -344,15 +351,15 @@ def assign_budget_tier(ad_budget: float) -> str:
     return "High (>5000)"
 
 
-df_clean["budget_tier"] = df_clean["ad_budget"].apply(assign_budget_tier)
+conversion_analysis["budget_tier"] = conversion_analysis["ad_budget"].apply(assign_budget_tier)
 
-gap_rows = (df_clean["budget_tier"] == "Gap (1500-2000)").sum()
+gap_rows = (conversion_analysis["budget_tier"] == "Gap (1500-2000)").sum()
 print(f"Rows falling in the undefined 1500-2000 gap: {gap_rows}")
 
 # %%
 tier_order = ["Low (<=1500)", "Gap (1500-2000)", "Mid (2000-5000)", "High (>5000)"]
 conversion_by_tier = (
-    df_clean.groupby("budget_tier")["conversion_rate"]
+    conversion_analysis.groupby("budget_tier")["conversion_rate"]
     .agg(avg_conversion_rate="mean", n_observations="count")
     .reindex(tier_order)
 )

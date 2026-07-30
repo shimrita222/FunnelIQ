@@ -36,3 +36,4 @@ ignore = ["B008"]  # FastAPI's Depends() in argument defaults is the idiomatic p
 # Bare expressions are the notebook-cell "auto-display" idiom (like `df.head()`
 # with no print), not dead code.
 "exploration_and_cleaning.py" = ["B018"]
+"customer_lifetime_regression.py" = ["B018"]

@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning | `exploration_and_cleaning.py` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -69,8 +69,12 @@ logic (lead-count sums, closed/not_closed vs. leads_answered, non-increasing
 follow-up counts), analyze outliers in the continuous business variables (IQR method,
 reported but not auto-removed), and run the required exploratory analysis
 (correlation with `cumulative_profit`, `ad_budget` vs. `num_leads`, and conversion
-rate by budget tier). The result is saved to `data/cleaned_funnel_data.csv` —
-the original `data/funnel_marketing_data.csv` is never modified.
+rate by budget tier — the conversion-rate/budget-tier analysis is computed in a
+local, throwaway frame and never attached to the saved dataset). The result is
+saved to `data/cleaned_funnel_data.csv` **with the original 19 columns only** — no
+Package-1-only derived columns — so every later package works from the same
+generic, reusable dataset. The original `data/funnel_marketing_data.csv` is never
+modified.
 
 **Findings from the current run:** 33 missing values across 2 columns (imputed), 10
 exact duplicate rows (removed), 0 business-logic violations, no outliers requiring
@@ -78,6 +82,25 @@ removal (they read as genuine business variance, not data errors). `ad_budget` a
 `num_leads` are strongly correlated (Pearson r ≈ 0.98), but the leads-per-shekel ratio
 drops sharply from the bottom to the top budget quartile — a clear diminishing-returns
 signal Northbound should factor into budget-allocation decisions (see Package 6).
+
+## Analysis (Package 2, part 1 — Customer Lifetime Prediction)
+
+`customer_lifetime_regression.py` is the first stage of Package 2: predicting a
+customer's lifetime in months (`ltv_months`). Same `# %%` cell-marker style as the
+Package 1 script.
+
+```bash
+uv run python customer_lifetime_regression.py
+```
+
+Loads `data/cleaned_funnel_data.csv`, drops the three columns that would leak future
+information (`ltv_months` itself, `cumulative_profit`, and `referred`), splits
+80/20 (`random_state=0` for reproducibility), and trains three baseline regressors
+(XGBoost, LightGBM, CatBoost) with default parameters — no scaling (unnecessary for
+tree-based models), no cross-validation, no tuning; those come in the next notebook.
+Evaluates each model on the held-out test set (RMSE, MAE, R²) and reports the
+best performer by RMSE. Current run: all three models land around R² ≈ 0.93–0.94,
+with CatBoost narrowly ahead (RMSE ≈ 3.07 months).
 
 ## Database (Supabase)
 
@@ -119,5 +142,7 @@ Supabase session and return `401` without one.
 FastAPI backend live on Railway, reading from a real Supabase Postgres
 database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
 (exploration & cleaning) is done — see `exploration_and_cleaning.py` and
-`data/cleaned_funnel_data.csv`. Packages 2–6 (the modeling work) and the rest
-of the dashboard UI are in progress.
+`data/cleaned_funnel_data.csv`. Package 2's first stage (baseline LTV regression)
+is done — see `customer_lifetime_regression.py`. Cross-validation/feature
+importance for Package 2, the rest of Packages 3–6, and the rest of the
+dashboard UI are in progress.
