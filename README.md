@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -121,6 +121,75 @@ importance rankings; LightGBM's default split-count importance surfaces a differ
 top feature (`leads_not_answered`), a reminder that the three models' importance
 scores aren't on a directly comparable scale.
 
+## Analysis (Package 2, part 3 — Business Analysis & Final Report)
+
+`customer_lifetime_business_analysis.ipynb` does **no additional model training**.
+It imports the already-fitted models, `X_test`/`y_test`, and the holdout
+`comparison` table directly from `customer_lifetime_regression.py`, and reproduces
+(rather than re-runs) the 5-fold CV table from
+`customer_lifetime_cv_feature_importance.ipynb` as a labeled reference — re-running
+`cross_validate` would itself mean re-fitting models, which this notebook is
+explicitly not meant to do.
+
+Covers: final model selection (CatBoost, based on CV), final held-out test
+performance, an actual-vs-predicted scatter plot and a residual-distribution plot for
+the selected model, a feature-importance business interpretation, the data-leakage
+rationale written for a non-technical audience, and evidence-based business
+recommendations — see the "Customer Lifetime Prediction" summary below, copied
+directly from that notebook's final report section.
+
+## Customer Lifetime Prediction
+
+### Objective
+
+Predict how many months a new customer will stay (`ltv_months`).
+
+### Models
+
+- XGBoost
+- LightGBM
+- CatBoost
+
+### Evaluation
+
+5-fold cross-validation (on the training split only):
+
+| Model    | Mean RMSE | Std RMSE | Mean R² | Std R² |
+|----------|-----------|----------|---------|--------|
+| CatBoost | 2.93      | 0.21     | 0.944   | 0.009  |
+| LightGBM | 2.97      | 0.20     | 0.942   | 0.009  |
+| XGBoost  | 3.19      | 0.16     | 0.933   | 0.008  |
+
+Final held-out test performance (CatBoost, selected model):
+
+| Model    | RMSE | MAE  | R²   |
+|----------|------|------|-------|
+| CatBoost | 3.07 | 2.27 | 0.939 |
+
+### Key Findings
+
+- **Strongest predictor:** `calls_to_closed` — the number of calls before a deal
+  closes is the single most important feature across models, and it correlates
+  *negatively* with lifetime (r ≈ −0.66): customers who take longer to close tend
+  to stay for **shorter**, not longer.
+- **Model agreement:** XGBoost and CatBoost agree closely (both gain-based
+  importance); LightGBM's default split-count importance surfaces funnel-volume
+  features instead — a measurement-scale difference, not evidence of a different
+  underlying relationship.
+- **Business implication:** a fast close is an early positive signal for customer
+  lifetime, not just sales efficiency — accounts that need many calls to close are
+  the group most likely to leave sooner, and are the ones retention efforts should
+  prioritize.
+
+### Data Leakage Decision
+
+`cumulative_profit` and `referred` were excluded from the feature set.
+`cumulative_profit` only exists after the customer relationship has played out, so
+using it would leak the future into the prediction. `referred` typically only
+occurs after a customer has already been active for a while, so it also isn't
+available at prediction time. Both would have made the model look better in
+testing while being unusable in production.
+
 ## Database (Supabase)
 
 - `sql/schema.sql` — defines the `customers` table and enables Row Level
@@ -161,7 +230,8 @@ Supabase session and return `401` without one.
 FastAPI backend live on Railway, reading from a real Supabase Postgres
 database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
 (exploration & cleaning) is done — see `exploration_and_cleaning.py` and
-`data/cleaned_funnel_data.csv`. Package 2 is done — baseline regression
-(`customer_lifetime_regression.py`) plus cross-validation and feature importance
-(`customer_lifetime_cv_feature_importance.ipynb`). Packages 3–6 and the rest of
+`data/cleaned_funnel_data.csv`. **Package 2 is fully done**: baseline regression
+(`customer_lifetime_regression.py`), cross-validation and feature importance
+(`customer_lifetime_cv_feature_importance.ipynb`), and the business analysis/final
+report (`customer_lifetime_business_analysis.ipynb`). Packages 3–6 and the rest of
 the dashboard UI are in progress.
