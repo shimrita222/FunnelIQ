@@ -17,3 +17,6 @@ supabase/.temp/
 
 # CatBoost training logs
 catboost_info/
+
+# Jupyter
+.ipynb_checkpoints/

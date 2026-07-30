@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -102,6 +102,25 @@ Evaluates each model on the held-out test set (RMSE, MAE, R²) and reports the
 best performer by RMSE. Current run: all three models land around R² ≈ 0.93–0.94,
 with CatBoost narrowly ahead (RMSE ≈ 3.07 months).
 
+## Analysis (Package 2, part 2 — Cross-Validation & Feature Importance)
+
+`customer_lifetime_cv_feature_importance.ipynb` is a real Jupyter notebook (unlike
+the two `# %%`-style scripts above, kept as an actual `.ipynb` for portfolio
+presentation). It imports the prepared train/test split and the already-fitted
+models directly from `customer_lifetime_regression.py` — nothing is reloaded,
+re-cleaned, or retrained from scratch.
+
+Adds: 5-fold cross-validation on `X_train`/`y_train` only (so the Part-1 holdout set
+stays untouched), reporting Mean/Std RMSE and R² per model; per-model feature
+importance (top-10 tables, one horizontal bar chart per model, and a cross-model
+comparison table); and a model-stability discussion. Current run: CatBoost leads the
+CV comparison (Mean RMSE ≈ 2.93, Mean R² ≈ 0.94) with low fold-to-fold variance,
+close to its Part-1 holdout numbers — a good sign of generalization rather than
+overfitting. `calls_to_closed` and `closed` dominate XGBoost's and CatBoost's
+importance rankings; LightGBM's default split-count importance surfaces a different
+top feature (`leads_not_answered`), a reminder that the three models' importance
+scores aren't on a directly comparable scale.
+
 ## Database (Supabase)
 
 - `sql/schema.sql` — defines the `customers` table and enables Row Level
@@ -142,7 +161,7 @@ Supabase session and return `401` without one.
 FastAPI backend live on Railway, reading from a real Supabase Postgres
 database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
 (exploration & cleaning) is done — see `exploration_and_cleaning.py` and
-`data/cleaned_funnel_data.csv`. Package 2's first stage (baseline LTV regression)
-is done — see `customer_lifetime_regression.py`. Cross-validation/feature
-importance for Package 2, the rest of Packages 3–6, and the rest of the
-dashboard UI are in progress.
+`data/cleaned_funnel_data.csv`. Package 2 is done — baseline regression
+(`customer_lifetime_regression.py`) plus cross-validation and feature importance
+(`customer_lifetime_cv_feature_importance.ipynb`). Packages 3–6 and the rest of
+the dashboard UI are in progress.
