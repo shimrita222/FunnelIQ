@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -190,6 +190,123 @@ occurs after a customer has already been active for a while, so it also isn't
 available at prediction time. Both would have made the model look better in
 testing while being unusable in production.
 
+## Analysis (Package 3 — Upsell Classification)
+
+`upsell_classification.py` predicts which customers are most likely to buy
+additional services (`upsell`), as reusable functions (`prepare_data`,
+`train_models`, `cross_validate_models`, `evaluate_models`,
+`get_feature_importance`, `apply_business_rule`/`evaluate_rule`) so a later
+notebook — and eventually the API — can import from it directly.
+
+```bash
+uv run python upsell_classification.py
+```
+
+Drops `cumulative_profit`/`referred` as leakage (same reasoning as Package 2);
+`ltv_months` and the rest of the funnel columns stay as features per this
+package's brief. Stratified 80/20 split, three classifiers each with their own
+class-imbalance handling (`scale_pos_weight` / `class_weight="balanced"` /
+`auto_class_weights="Balanced"`), 5-fold stratified CV scored on
+Accuracy/Precision/Recall/F1 (selecting by F1, not accuracy, given the ~58/42
+imbalance), a final holdout evaluation with a confusion matrix, feature
+importance, and a comparison against a simple `ltv_months`/`customer_acquisition_cost`
+threshold business rule.
+
+`upsell_classification_analysis.ipynb` adds no additional training — it imports
+the already-fitted models and result tables directly from the script, and only
+recreates the business-rule baseline in-notebook (using thresholds computed from
+`X_train` only, not the whole dataset, for a fair train/test comparison). Adds
+styled comparison tables, grouped bar charts, an annotated confusion-matrix
+heatmap, and a business-recommendations write-up.
+
+Current run: CatBoost wins by CV and holdout F1 (≈0.78 / ≈0.77) and clearly
+outperforms the business-rule baseline (F1 0.77 vs. 0.39), mainly via much
+higher recall (0.87 vs. 0.27) at similar precision. Feature importance is split
+between `ltv_months` (~26%) and `purchased` (~22%), not one dominant feature.
+
+## Upsell Classification
+
+### Objective
+
+Predict which customers are most likely to buy additional services (`upsell`).
+
+### Models
+
+- XGBoost (`scale_pos_weight`)
+- LightGBM (`class_weight="balanced"`)
+- CatBoost (`auto_class_weights="Balanced"`)
+
+### Evaluation
+
+5-fold stratified cross-validation (on the training split only):
+
+| Model    | Accuracy | Precision | Recall | F1    |
+|----------|----------|-----------|--------|-------|
+| CatBoost | 0.797    | 0.711     | 0.872  | 0.783 |
+| LightGBM | 0.781    | 0.695     | 0.853  | 0.766 |
+| XGBoost  | 0.761    | 0.686     | 0.796  | 0.737 |
+
+Final held-out test performance (CatBoost, selected model):
+
+| Model    | Accuracy | Precision | Recall | F1    |
+|----------|----------|-----------|--------|-------|
+| CatBoost | 0.778    | 0.684     | 0.874  | 0.768 |
+
+Confusion matrix (test set, CatBoost): 287 true negatives, 118 false positives,
+37 false negatives, 256 true positives.
+
+### Key Findings
+
+- **Model selected by F1, not accuracy** — the ~58/42 class imbalance makes raw
+  accuracy misleading; F1 balances catching real upsells against wasted outreach.
+- **Feature importance is top-heavy but not single-feature:** `ltv_months`
+  (~26%) and `purchased` (~22%) together carry about half the model's decisions.
+- **The ML model substantially beats a simple business rule** (`ltv_months` and
+  `customer_acquisition_cost` thresholds, computed from the train set): F1 0.77
+  vs. 0.39, driven almost entirely by much higher recall (0.87 vs. 0.27).
+
+### Data Leakage Decision
+
+`cumulative_profit` and `referred` were excluded, for the same reason as the
+LTV regression task: both are outcomes that only exist after the customer
+relationship has played out, so they wouldn't be available at the moment an
+upsell prediction is actually needed.
+
+## Analysis (Package 4 — Super Customer Score)
+
+Two notebooks, both predicting `referred` (a customer who refers others) as a
+0–100 "super customer" score via a hyperparameter-tuned `CatBoostClassifier`
+(`GridSearchCV` over depth/learning_rate/iterations, `auto_class_weights="Balanced"`,
+5-fold stratified CV scored on F1).
+
+**`super_customer_score.ipynb` (v1)** follows the package brief literally,
+keeping every remaining column (including `upsell`, `ltv_months`, `purchased`)
+as a feature, dropping only `cumulative_profit`. Test performance: Accuracy
+0.824, Precision 0.803, Recall 0.723, F1 0.761, **ROC-AUC 0.867**. Its own
+feature-importance analysis surfaced an important caveat: `upsell` (~36%),
+`ltv_months` (~30%), and `purchased` (~20%) together carry ~86% of the model's
+decision weight — the same category of late-relationship information Packages 2
+and 3 excluded as leakage for their own targets. That makes v1 much better at
+describing an already-mature customer's referral likelihood than at scoring a
+genuinely new customer on day one.
+
+**`super_customer_score_early_features.ipynb` (v2)** restricts the feature set
+to what's actually known at or near acquisition time (drops `upsell`,
+`ltv_months`, and `cumulative_profit`, keeps `purchased` and the rest of the
+funnel columns). Test performance: Accuracy 0.755, Precision 0.647, Recall
+0.812, F1 0.720, ROC-AUC 0.817 — a real but modest cost versus v1, with Recall
+actually *improving*. Feature importance is still concentrated in two features
+(`purchased` ~46%, `calls_to_closed` ~40%), but this time both are genuinely
+available early. v2's predicted probabilities are also far less extreme than
+v1's (only 14 of 698 test customers land in the "High" tier vs. 225 in v1), so
+v1's fixed 40/75 tier thresholds don't transfer directly — v2's should be
+recalibrated against its own score distribution before use.
+
+Both notebooks implement a reusable `predict_super_customer_score(customer_df,
+model)` function (probability × 100, rounded, with a Low/Medium/High tier),
+ready to be served by a future FunnelIQ API endpoint — v2's is the version
+actually usable at the true start of the funnel.
+
 ## Database (Supabase)
 
 - `sql/schema.sql` — defines the `customers` table and enables Row Level
@@ -233,5 +350,10 @@ database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
 `data/cleaned_funnel_data.csv`. **Package 2 is fully done**: baseline regression
 (`customer_lifetime_regression.py`), cross-validation and feature importance
 (`customer_lifetime_cv_feature_importance.ipynb`), and the business analysis/final
-report (`customer_lifetime_business_analysis.ipynb`). Packages 3–6 and the rest of
-the dashboard UI are in progress.
+report (`customer_lifetime_business_analysis.ipynb`). **Package 3 is done**:
+upsell classification (`upsell_classification.py`) plus its analysis notebook
+(`upsell_classification_analysis.ipynb`). **Package 4 is done**: the super
+customer score, in two versions (`super_customer_score.ipynb` and the
+early-features-only `super_customer_score_early_features.ipynb`). None of these
+models are wired into the API/`models/` yet. Packages 5–6 and the rest of the
+dashboard UI are in progress.
