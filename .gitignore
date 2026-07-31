@@ -20,3 +20,6 @@ catboost_info/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Dataset (local only — not pushed to GitHub)
+data/
