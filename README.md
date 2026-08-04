@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification, funnel dropout analysis | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb`, `follow_up_analysis.py`, `follow_up_policy_analysis.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -307,6 +307,74 @@ model)` function (probability × 100, rounded, with a Low/Medium/High tier),
 ready to be served by a future FunnelIQ API endpoint — v2's is the version
 actually usable at the true start of the funnel.
 
+## Analysis (Package 5 — Follow-up Policy Analysis)
+
+`follow_up_analysis.py` is a reusable module (`load_data`,
+`calculate_followup_statistics`, `calculate_dropout_rates`,
+`create_visualizations`, `analyze_sales_calls`, `generate_business_summary`) —
+not a predictive model, an EDA/funnel investigation answering one business
+question: is the sales manager right that follow-up calls after the 3rd call
+are a waste of time? The dataset has no column linking a specific closed deal
+to a specific follow-up stage, so the analysis relies only on (a) the
+stage-by-stage lead-retention/dropout curve and (b) `calls_to_closed` vs.
+`calls_to_not_closed` as an aggregate proxy for contact effort — it does not
+invent a per-stage close count.
+
+```bash
+uv run python follow_up_analysis.py
+```
+
+`follow_up_policy_analysis.ipynb` adds no recomputation — it imports every
+result directly from the script and adds richer charts and business narrative.
+
+See the "Follow-up Analysis" summary below, copied directly from that
+notebook's final report section.
+
+## Follow-up Analysis
+
+### Objective
+
+Northbound's sales manager claims follow-up calls after the 3rd call are a
+waste of time. This analysis checks that claim against the funnel data —
+the dataset has no column linking a specific closed deal to a specific
+follow-up stage, so the check relies on the stage-by-stage lead-retention
+curve and the calls-to-closed vs. calls-to-not-closed comparison, not on an
+invented per-stage close count.
+
+### Methodology
+
+Dropout rates were calculated as `(previous stage - current stage) /
+previous stage`, using `leads_answered` as the stage-0 baseline and summing
+`followup_1`–`followup_5` across the dataset (each row is a cohort-level
+record, consistent with how earlier packages treat these columns). Call
+effort was compared via the mean of `calls_to_closed` vs.
+`calls_to_not_closed`.
+
+### Key Findings
+
+- Drop-off is not smoothly declining: Follow-up 4 has the **lowest**
+  drop-off of any stage (10.4%), while Follow-up 5 has the **highest**
+  (29.2%) — a clear anomaly worth investigating on its own.
+- Leads remaining at Follow-up 3/4/5 (46,323 / 41,517 / 29,384) stay far
+  larger than the total closed-deal count (10,557) throughout, so the
+  funnel is still actively working well past the 3rd call.
+- Closed deals average fewer calls (3.52) than abandoned deals (3.93) — a
+  real but modest signal that dragging a deal out is mildly associated
+  with a lower chance of closing.
+
+### Business Insight
+
+Additional follow-ups do create measurable value past the 3rd call —
+Follow-up 4 is the strongest-retaining stage in the entire funnel. The one
+genuine weak point is Follow-up 5 specifically, not "anything after call 3."
+
+### Recommendation
+
+Keep the full 5-call sequence; do not cut off after the 3rd call. Instead,
+investigate and address the Follow-up 5 drop-off spike directly (script,
+timing, or lead-fatigue review), and use rising call count past ~4 calls as
+a soft prioritization signal rather than a hard policy cutoff.
+
 ## Database (Supabase)
 
 - `sql/schema.sql` — defines the `customers` table and enables Row Level
@@ -354,6 +422,8 @@ report (`customer_lifetime_business_analysis.ipynb`). **Package 3 is done**:
 upsell classification (`upsell_classification.py`) plus its analysis notebook
 (`upsell_classification_analysis.ipynb`). **Package 4 is done**: the super
 customer score, in two versions (`super_customer_score.ipynb` and the
-early-features-only `super_customer_score_early_features.ipynb`). None of these
-models are wired into the API/`models/` yet. Packages 5–6 and the rest of the
-dashboard UI are in progress.
+early-features-only `super_customer_score_early_features.ipynb`). **Package 5
+is done**: the follow-up policy analysis (`follow_up_analysis.py` plus
+`follow_up_policy_analysis.ipynb`). None of the Package 2–4 models are wired
+into the API/`models/` yet. Package 6 and the rest of the dashboard UI are in
+progress.

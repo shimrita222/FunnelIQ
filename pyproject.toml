@@ -38,3 +38,4 @@ ignore = ["B008"]  # FastAPI's Depends() in argument defaults is the idiomatic p
 "exploration_and_cleaning.py" = ["B018"]
 "customer_lifetime_regression.py" = ["B018"]
 "upsell_classification.py" = ["B018"]
+"follow_up_analysis.py" = ["B018"]
