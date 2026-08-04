@@ -545,6 +545,35 @@ simulation.
 - `GET /customers?limit=50&offset=0` — paginated customer records from Supabase (auth required)
 - `GET /statistics` — aggregate metrics (conversion rate, referral rate, upsell rate, avg profit/LTV) computed from Supabase (auth required)
 
+### Predictions (`backend/predictions.py`)
+
+Each of the four trained models (Package 2, Package 3 v2, Package 4 v2,
+Package 6) is persisted to `models/*.joblib` by `scripts/export_models.py`
+and loaded once at app startup — no retraining at request time, and no
+dependency on `data/` (gitignored, never deployed to Railway). All five
+endpoints require auth, same as `/customers`/`/statistics`.
+
+- `POST /predict/lifetime` — Package 2's CatBoost regressor →
+  `{"predicted_ltv_months": float}`
+- `POST /predict/upsell` — Package 3 v2's classifier →
+  `{"upsell_probability": float, "predicted_upsell": 0|1}`
+- `POST /predict/super-customer` — Package 4 v2's classifier, scored via the
+  same `predict_super_customer_score` logic the notebook uses →
+  `{"score": float, "tier": "Low"|"Medium"|"High"}`
+- `POST /budget-optimization` — samples `N = round(monthly_budget / mean(ad_budget))`
+  real customer profiles from live Supabase data and runs Package 6's
+  4-scenario simulation (`simulate_budget_scenarios`) against them → the
+  scenario comparison table as JSON. Body: `{"monthly_budget": 50000}` (optional, defaults to 50,000).
+- `GET /followup-analysis` — Package 5's dropout/call-effort analysis, run
+  live against current Supabase data instead of the frozen CSV → dropout-by-stage
+  table, call stats, and the business conclusion/recommendation.
+
+The first three take the same 15-feature request body (`ad_budget`,
+`num_leads`, `leads_answered`, `leads_not_answered`, `followup_1`..`followup_5`,
+`not_closed`, `closed`, `calls_to_closed`, `calls_to_not_closed`,
+`customer_acquisition_cost`, `purchased`) — the shared feature set across
+Packages 2/3v2/4v2/6 after excluding each model's own leakage columns.
+
 ## Authentication
 
 FunnelIQ is an internal tool: `/customers` and `/statistics` require a valid
@@ -584,5 +613,7 @@ is done**: the follow-up policy analysis (`follow_up_analysis.py` plus
 `follow_up_policy_analysis.ipynb`). **Package 6 is done**: the budget
 optimization challenge (`budget_optimization.py` plus
 `budget_optimization_analysis.ipynb`). **All six analytical packages from the
-project brief are now complete.** None of the Package 2–4/6 models are wired
-into the API/`models/` yet, and the dashboard UI is still in progress.
+project brief are now complete.** The Package 2/3v2/4v2/6 models are persisted
+to `models/*.joblib` (`scripts/export_models.py`) and wired into the API via
+`backend/predictions.py` — see the Predictions section above. The dashboard
+UI is still in progress.
