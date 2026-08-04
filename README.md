@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification, funnel dropout analysis, budget-scenario simulation | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb`, `follow_up_analysis.py`, `follow_up_policy_analysis.ipynb`, `budget_optimization.py`, `budget_optimization_analysis.ipynb` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification, funnel dropout analysis, budget-scenario simulation | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `upsell_classification_v2.py`, `upsell_classification_v2_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb`, `follow_up_analysis.py`, `follow_up_policy_analysis.ipynb`, `budget_optimization.py`, `budget_optimization_analysis.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -272,6 +272,67 @@ LTV regression task: both are outcomes that only exist after the customer
 relationship has played out, so they wouldn't be available at the moment an
 upsell prediction is actually needed.
 
+## Analysis (Package 3, v2 — Upsell Classification without ltv_months)
+
+A project-wide audit found that `upsell_classification.py` (v1, above) kept
+`ltv_months` as a feature, even though it's only fully known once a customer
+relationship has ended — the same category of late-relationship information
+Package 4 identified and removed in its own v1→v2 fix. `ltv_months` was v1's
+#1 feature at ~26% importance. `upsell_classification_v2.py` removes it
+(`LEAKAGE_COLS = ["cumulative_profit", "referred", "ltv_months"]`) and is
+otherwise an exact structural mirror of v1, for a fair comparison; v1 is left
+untouched as the historical record of what was built to the original brief.
+
+```bash
+uv run python upsell_classification_v2.py
+```
+
+`upsell_classification_v2_analysis.ipynb` adds no recomputation and includes
+a v1-vs-v2 comparison section, reproducing v1's verified numbers as a
+reference table (not recomputed). One additional change was required: v1's
+business-rule baseline used `ltv_months > median`, which is no longer a
+feature in v2 — it's replaced with `purchased == 1` (a genuinely
+early-available signal in the same spirit), alongside the unchanged
+`customer_acquisition_cost` threshold.
+
+## Upsell Classification (v2 — without ltv_months)
+
+### Objective
+
+A project-wide audit found that `upsell_classification.py` (v1) kept
+`ltv_months` as a feature, even though it's only fully known once a
+customer relationship has ended — the same category of late-relationship
+information Package 4 identified and removed in its own v1→v2 fix.
+`ltv_months` was v1's #1 feature at ~26% importance. This v2 removes it
+and is otherwise an exact structural mirror of v1, for a fair comparison.
+
+### Evaluation
+
+| Version | Accuracy | Precision | Recall | F1 |
+|---------|----------|-----------|--------|-----|
+| v1 (with ltv_months) | 0.778 | 0.684 | 0.874 | 0.768 |
+| v2 (without ltv_months) | 0.769 | 0.677 | 0.860 | 0.758 |
+
+CatBoost remains the best model in both versions.
+
+### Key Findings
+
+- The performance cost of removing `ltv_months` is small (~1 F1 point) —
+  far smaller than Package 4's ~4-point v1→v2 drop.
+- `purchased` (already a legitimate feature) absorbs most of the lost
+  signal, rising from ~22% to ~35% importance.
+- The business-rule baseline had to change too: v1's `ltv_months`-based
+  rule isn't usable in v2, so a `purchased`-based rule substitutes — and
+  performs even more weakly than v1's rule did, reinforcing that the ML
+  model is the right tool here regardless of feature-set version.
+
+### Recommendation
+
+Use v2 for any production upsell-scoring use case. v1's slightly higher
+numbers were partly resting on a feature that wouldn't be reliably
+available at real prediction time; v2's small performance cost buys a
+model that's actually deployable.
+
 ## Analysis (Package 4 — Super Customer Score)
 
 Two notebooks, both predicting `referred` (a customer who refers others) as a
@@ -507,7 +568,9 @@ database (`customers` table, RLS enabled) behind Supabase Auth. Package 1
 (`customer_lifetime_cv_feature_importance.ipynb`), and the business analysis/final
 report (`customer_lifetime_business_analysis.ipynb`). **Package 3 is done**:
 upsell classification (`upsell_classification.py`) plus its analysis notebook
-(`upsell_classification_analysis.ipynb`). **Package 4 is done**: the super
+(`upsell_classification_analysis.ipynb`), plus a **v2** without `ltv_months`
+(`upsell_classification_v2.py` / `upsell_classification_v2_analysis.ipynb`) —
+found via a project-wide leakage audit; use v2 for production. **Package 4 is done**: the super
 customer score, in two versions (`super_customer_score.ipynb` and the
 early-features-only `super_customer_score_early_features.ipynb`). **Package 5
 is done**: the follow-up policy analysis (`follow_up_analysis.py` plus
