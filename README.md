@@ -14,7 +14,7 @@ Live URL: https://funnelmarketingdata-production.up.railway.app
 | Backend    | Python, FastAPI                         | `backend/`   |
 | Frontend   | HTML/JS dashboard + Supabase Auth login | `frontend/`  |
 | Data       | Supabase Postgres                       | `sql/`, `data/` |
-| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification, funnel dropout analysis | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb`, `follow_up_analysis.py`, `follow_up_policy_analysis.ipynb` |
+| Analysis   | pandas / seaborn exploration & cleaning, gradient-boosting regression & classification, funnel dropout analysis, budget-scenario simulation | `exploration_and_cleaning.py`, `customer_lifetime_regression.py`, `customer_lifetime_cv_feature_importance.ipynb`, `customer_lifetime_business_analysis.ipynb`, `upsell_classification.py`, `upsell_classification_analysis.ipynb`, `super_customer_score.ipynb`, `super_customer_score_early_features.ipynb`, `follow_up_analysis.py`, `follow_up_policy_analysis.ipynb`, `budget_optimization.py`, `budget_optimization_analysis.ipynb` |
 | Models     | XGBoost / LightGBM / CatBoost           | `models/`    |
 | Docs       | Findings notes, project brief           | `docs/`      |
 | Tests      | pytest                                  | `tests/`     |
@@ -375,6 +375,93 @@ investigate and address the Follow-up 5 drop-off spike directly (script,
 timing, or lead-fatigue review), and use rising call count past ~4 calls as
 a soft prioritization signal rather than a hard policy cutoff.
 
+## Analysis (Package 6 — Budget Optimization Challenge)
+
+`budget_optimization.py` is a reusable module (`load_data`,
+`prepare_features`, `train_models`, `compare_models`, `cross_validate_models`,
+`calculate_feature_importance`, `simulate_budget_scenarios`,
+`generate_business_report`) that tests whether reallocating Northbound's
+₪50,000/month ad budget could increase expected profit. The dataset has no
+campaign identifier or channel column, so no campaign-level data is invented
+— budget scenarios are simulated by varying `ad_budget` for real, sampled
+customer profiles, holding every other feature fixed.
+
+```bash
+uv run python budget_optimization.py
+```
+
+Drops `ltv_months`, `upsell`, and `referred` as leakage (outcomes that only
+resolve after long-term customer behavior is known), leaving 15 features to
+predict `cumulative_profit`. Trains XGBoost/LightGBM/CatBoost with default
+parameters, evaluates with an 80/20 split plus 5-fold CV, and simulates 4
+budget scenarios across `N = round(₪50,000 / mean(ad_budget)) = 11` sampled
+"campaign slot" profiles.
+
+`budget_optimization_analysis.ipynb` adds no recomputation — it imports every
+result directly from the script and adds charts and business narrative.
+
+See the "Budget Optimization Challenge" summary below, copied directly from
+that notebook's final report section.
+
+## Budget Optimization Challenge
+
+### Objective
+
+Northbound spends ₪50,000/month, split equally across campaigns. This
+package tests whether a different allocation of the same ₪50,000 would
+produce more expected profit than the current equal split.
+
+### Modeling Approach
+
+- **Target:** `cumulative_profit`.
+- **Leakage prevention:** `ltv_months`, `upsell`, and `referred` are dropped
+  from the feature set — all are outcomes that only resolve after long-term
+  customer behavior is known. 15 features remain.
+- **Models:** XGBoost, LightGBM, and CatBoost regressors (default
+  parameters), evaluated with an 80/20 split and 5-fold cross-validation on
+  the training set only.
+
+### Evaluation
+
+LightGBM performed best (holdout RMSE ≈ 5,668, R² ≈ 0.75; 5-fold CV Mean
+RMSE ≈ 5,356, Mean R² ≈ 0.76), narrowly ahead of CatBoost and clearly ahead
+of XGBoost (R² ≈ 0.61).
+
+### Simulation
+
+The dataset has no campaign identifier or channel column, so no
+campaign-level data was invented. Instead, `N = 11` real customer profiles
+were sampled from the test set to stand in for concurrent "campaign slots"
+(₪50,000 ÷ the dataset's average `ad_budget` ≈ 11), and four scenarios were
+simulated by varying only each profile's `ad_budget` (all other features
+held fixed): (1) equal allocation of the current ₪50,000, (2) equal
+allocation of a +20% budget, (3) equal allocation of a −20% budget, and (4)
+a profit-weighted allocation favoring profiles the model ranked as more
+profitable at equal spend.
+
+### Key Findings
+
+- `ad_budget` ranks **last** of all 15 features in importance — once lead
+  volume and follow-up execution are known, raw ad spend adds almost no
+  further predictive signal for profit.
+- A 20% budget increase produced **zero** additional predicted profit; a
+  20% decrease produced only a small (~1%) predicted decline. Increasing
+  budget does not straightforwardly increase profit in this model.
+- The profit-weighted reallocation (Scenario 4) **underperformed** simple
+  equal allocation — reshuffling a low-leverage variable didn't help.
+- The strongest profit drivers are `num_leads`, `leads_answered`, and
+  `leads_not_answered`, followed by follow-up-stage engagement and
+  `customer_acquisition_cost`.
+
+### Recommendation
+
+Do not increase ad spend expecting more profit on its own. Redirect focus
+toward increasing lead volume and improving follow-up execution — the
+actual drivers this model identifies — rather than the size of the ad
+budget itself. Treat any real budget change as a hypothesis to validate
+with a controlled pilot, not a conclusion to roll out directly from this
+simulation.
+
 ## Database (Supabase)
 
 - `sql/schema.sql` — defines the `customers` table and enables Row Level
@@ -424,6 +511,8 @@ upsell classification (`upsell_classification.py`) plus its analysis notebook
 customer score, in two versions (`super_customer_score.ipynb` and the
 early-features-only `super_customer_score_early_features.ipynb`). **Package 5
 is done**: the follow-up policy analysis (`follow_up_analysis.py` plus
-`follow_up_policy_analysis.ipynb`). None of the Package 2–4 models are wired
-into the API/`models/` yet. Package 6 and the rest of the dashboard UI are in
-progress.
+`follow_up_policy_analysis.ipynb`). **Package 6 is done**: the budget
+optimization challenge (`budget_optimization.py` plus
+`budget_optimization_analysis.ipynb`). **All six analytical packages from the
+project brief are now complete.** None of the Package 2–4/6 models are wired
+into the API/`models/` yet, and the dashboard UI is still in progress.
