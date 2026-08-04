@@ -93,14 +93,15 @@ Package 1 script.
 uv run python customer_lifetime_regression.py
 ```
 
-Loads `data/cleaned_funnel_data.csv`, drops the three columns that would leak future
-information (`ltv_months` itself, `cumulative_profit`, and `referred`), splits
-80/20 (`random_state=0` for reproducibility), and trains three baseline regressors
-(XGBoost, LightGBM, CatBoost) with default parameters — no scaling (unnecessary for
-tree-based models), no cross-validation, no tuning; those come in the next notebook.
-Evaluates each model on the held-out test set (RMSE, MAE, R²) and reports the
-best performer by RMSE. Current run: all three models land around R² ≈ 0.93–0.94,
-with CatBoost narrowly ahead (RMSE ≈ 3.07 months).
+Loads `data/cleaned_funnel_data.csv`, drops the four columns that would leak future
+information (`ltv_months` itself, `cumulative_profit`, `referred`, and `upsell` —
+the last added after a project-wide leakage audit, see the Data Leakage Decision
+below), splits 80/20 (`random_state=0` for reproducibility), and trains three
+baseline regressors (XGBoost, LightGBM, CatBoost) with default parameters — no
+scaling (unnecessary for tree-based models), no cross-validation, no tuning; those
+come in the next notebook. Evaluates each model on the held-out test set (RMSE,
+MAE, R²) and reports the best performer by RMSE. Current run: all three models
+land around R² ≈ 0.93–0.94, with CatBoost narrowly ahead (RMSE ≈ 3.09 months).
 
 ## Analysis (Package 2, part 2 — Cross-Validation & Feature Importance)
 
@@ -114,7 +115,7 @@ Adds: 5-fold cross-validation on `X_train`/`y_train` only (so the Part-1 holdout
 stays untouched), reporting Mean/Std RMSE and R² per model; per-model feature
 importance (top-10 tables, one horizontal bar chart per model, and a cross-model
 comparison table); and a model-stability discussion. Current run: CatBoost leads the
-CV comparison (Mean RMSE ≈ 2.93, Mean R² ≈ 0.94) with low fold-to-fold variance,
+CV comparison (Mean RMSE ≈ 2.95, Mean R² ≈ 0.94) with low fold-to-fold variance,
 close to its Part-1 holdout numbers — a good sign of generalization rather than
 overfitting. `calls_to_closed` and `closed` dominate XGBoost's and CatBoost's
 importance rankings; LightGBM's default split-count importance surfaces a different
@@ -156,15 +157,15 @@ Predict how many months a new customer will stay (`ltv_months`).
 
 | Model    | Mean RMSE | Std RMSE | Mean R² | Std R² |
 |----------|-----------|----------|---------|--------|
-| CatBoost | 2.93      | 0.21     | 0.944   | 0.009  |
-| LightGBM | 2.97      | 0.20     | 0.942   | 0.009  |
-| XGBoost  | 3.19      | 0.16     | 0.933   | 0.008  |
+| CatBoost | 2.95      | 0.21     | 0.943   | 0.009  |
+| LightGBM | 2.99      | 0.20     | 0.942   | 0.009  |
+| XGBoost  | 3.24      | 0.17     | 0.932   | 0.008  |
 
 Final held-out test performance (CatBoost, selected model):
 
 | Model    | RMSE | MAE  | R²   |
 |----------|------|------|-------|
-| CatBoost | 3.07 | 2.27 | 0.939 |
+| CatBoost | 3.09 | 2.30 | 0.938 |
 
 ### Key Findings
 
@@ -183,12 +184,18 @@ Final held-out test performance (CatBoost, selected model):
 
 ### Data Leakage Decision
 
-`cumulative_profit` and `referred` were excluded from the feature set.
-`cumulative_profit` only exists after the customer relationship has played out, so
-using it would leak the future into the prediction. `referred` typically only
-occurs after a customer has already been active for a while, so it also isn't
-available at prediction time. Both would have made the model look better in
-testing while being unusable in production.
+`cumulative_profit`, `referred`, and `upsell` were excluded from the feature
+set. `cumulative_profit` only exists after the customer relationship has
+played out, so using it would leak the future into the prediction.
+`referred` typically only occurs after a customer has already been active
+for a while, so it also isn't available at prediction time. `upsell` was
+added later, after a project-wide leakage audit found it kept as a feature
+here despite being a purchase event that can happen at any point during the
+relationship with no guarantee it resolves before `ltv_months` is known —
+the same category of issue already fixed in Package 3 v2 and Package 4 v2.
+Its actual impact turned out negligible (~0.4% importance before removal),
+so this was a same-file fix rather than a parallel v2. All three would have
+made the model look better in testing while being unusable in production.
 
 ## Analysis (Package 3 — Upsell Classification)
 
