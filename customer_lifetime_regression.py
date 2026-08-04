@@ -24,7 +24,7 @@ DATA_DIR = Path(__file__).parent / "data"
 CLEANED_CSV_PATH = DATA_DIR / "cleaned_funnel_data.csv"
 
 TARGET_COL = "ltv_months"
-LEAKAGE_COLS = ["cumulative_profit", "referred"]
+LEAKAGE_COLS = ["cumulative_profit", "referred", "upsell"]
 
 RANDOM_STATE = 0
 TEST_SIZE = 0.20
@@ -45,15 +45,20 @@ df.dtypes
 # %% [markdown]
 # ## Prevent Data Leakage
 #
-# Before building `X`/`y`, three columns must be excluded from the feature set:
+# Before building `X`/`y`, four columns must be excluded from the feature set:
 #
 # - **`ltv_months`** — this is the prediction target; it cannot also be an input.
 # - **`cumulative_profit`** — only known once the full customer lifecycle has played
 #   out, so it contains information from *after* the outcome we're predicting.
 # - **`referred`** — typically only becomes known after a customer has been active
 #   for a while, so it isn't available at prediction time either.
+# - **`upsell`** — a purchase event that can happen at any point during the
+#   relationship, with no guarantee it resolves before `ltv_months` is known; the
+#   same late-relationship-information risk already fixed for Package 3
+#   (`upsell_classification_v2.py`, which drops `ltv_months` for the mirror-image
+#   reason) and Package 4 (`super_customer_score_early_features.ipynb`).
 #
-# Including either of the last two would leak future information into the model and
+# Including any of the last three would leak future information into the model and
 # produce unrealistically optimistic performance that would not hold up in production.
 
 # %% [markdown]
