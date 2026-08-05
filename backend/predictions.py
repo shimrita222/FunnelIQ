@@ -11,6 +11,7 @@ import joblib
 import pandas as pd
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from supabase import Client
 
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
@@ -22,7 +23,6 @@ from followup_metrics import (
     generate_business_summary,
 )
 from funnel_scoring import predict_super_customer_score
-from supabase import Client
 
 router = APIRouter()
 
