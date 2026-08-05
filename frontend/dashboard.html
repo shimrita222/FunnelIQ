@@ -5,19 +5,225 @@
   <title>FunnelIQ — Dashboard</title>
   <script src="/static/vendor/supabase.js"></script>
   <script src="/static/config.js"></script>
+  <style>
+    table { border-collapse: collapse; margin: 8px 0; }
+    th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: right; font-size: 14px; }
+    th:first-child, td:first-child { text-align: left; }
+    .error { color: red; }
+    .panel { margin-bottom: 32px; }
+    label { display: inline-block; width: 200px; }
+    input { width: 120px; }
+  </style>
 </head>
-<body style="font-family: sans-serif; max-width: 640px; margin: 40px auto;">
+<body style="font-family: sans-serif; max-width: 720px; margin: 40px auto;">
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h1>FunnelIQ Dashboard</h1>
     <button id="signout">Sign out</button>
   </div>
-  <h2>Statistics</h2>
-  <pre id="statistics">Loading…</pre>
-  <h2>Customers (first 10)</h2>
-  <pre id="customers">Loading…</pre>
+
+  <div class="panel">
+    <h2>Statistics</h2>
+    <pre id="statistics">Loading…</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Customers (first 10)</h2>
+    <pre id="customers">Loading…</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Predictions</h2>
+    <form id="prediction-form">
+      <label for="ad_budget">Ad budget</label><input type="number" id="ad_budget" value="5000" step="any" /><br />
+      <label for="num_leads">Num leads</label><input type="number" id="num_leads" value="100" step="any" /><br />
+      <label for="leads_answered">Leads answered</label><input type="number" id="leads_answered" value="80" step="any" /><br />
+      <label for="leads_not_answered">Leads not answered</label><input type="number" id="leads_not_answered" value="20" step="any" /><br />
+      <label for="followup_1">Follow-up 1</label><input type="number" id="followup_1" value="70" step="any" /><br />
+      <label for="followup_2">Follow-up 2</label><input type="number" id="followup_2" value="60" step="any" /><br />
+      <label for="followup_3">Follow-up 3</label><input type="number" id="followup_3" value="50" step="any" /><br />
+      <label for="followup_4">Follow-up 4</label><input type="number" id="followup_4" value="40" step="any" /><br />
+      <label for="followup_5">Follow-up 5</label><input type="number" id="followup_5" value="30" step="any" /><br />
+      <label for="not_closed">Not closed</label><input type="number" id="not_closed" value="15" step="any" /><br />
+      <label for="closed">Closed</label><input type="number" id="closed" value="25" step="any" /><br />
+      <label for="calls_to_closed">Calls to closed</label><input type="number" id="calls_to_closed" value="3.5" step="any" /><br />
+      <label for="calls_to_not_closed">Calls to not closed</label><input type="number" id="calls_to_not_closed" value="4.0" step="any" /><br />
+      <label for="customer_acquisition_cost">Acquisition cost</label><input type="number" id="customer_acquisition_cost" value="200" step="any" /><br />
+      <label for="purchased">Purchased (0/1)</label><input type="number" id="purchased" value="1" min="0" max="1" step="1" /><br /><br />
+      <button type="button" id="predict-lifetime">Predict Lifetime</button>
+      <button type="button" id="predict-upsell">Predict Upsell</button>
+      <button type="button" id="predict-super-customer">Predict Super Customer</button>
+    </form>
+    <p id="lifetime-result"></p>
+    <p id="upsell-result"></p>
+    <p id="super-customer-result"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Budget Optimization</h2>
+    <label for="monthly_budget">Monthly budget</label><input type="number" id="monthly_budget" value="50000" step="any" />
+    <button type="button" id="run-budget-optimization">Run simulation</button>
+    <div id="budget-result"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Follow-up Analysis</h2>
+    <div id="followup-result">Loading…</div>
+  </div>
 
   <script>
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let authHeaders = null;
+
+    function readFeatures() {
+      const ids = [
+        "ad_budget", "num_leads", "leads_answered", "leads_not_answered",
+        "followup_1", "followup_2", "followup_3", "followup_4", "followup_5",
+        "not_closed", "closed", "calls_to_closed", "calls_to_not_closed",
+        "customer_acquisition_cost", "purchased",
+      ];
+      const features = {};
+      for (const id of ids) {
+        features[id] = Number(document.getElementById(id).value);
+      }
+      return features;
+    }
+
+    async function postJson(path, body) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (response.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Not authenticated");
+      }
+      if (!response.ok) {
+        throw new Error(`Request to ${path} failed (${response.status})`);
+      }
+      return response.json();
+    }
+
+    async function getJson(path) {
+      const response = await fetch(path, { headers: authHeaders });
+      if (response.status === 401) {
+        window.location.href = "/login";
+        throw new Error("Not authenticated");
+      }
+      if (!response.ok) {
+        throw new Error(`Request to ${path} failed (${response.status})`);
+      }
+      return response.json();
+    }
+
+    function renderTable(rows, columns) {
+      const table = document.createElement("table");
+      const thead = table.insertRow();
+      for (const col of columns) {
+        const th = document.createElement("th");
+        th.textContent = col;
+        thead.appendChild(th);
+      }
+      for (const row of rows) {
+        const tr = table.insertRow();
+        for (const col of columns) {
+          const td = tr.insertCell();
+          const value = row[col];
+          td.textContent = value === null || value === undefined
+            ? "—"
+            : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value);
+        }
+      }
+      return table;
+    }
+
+    document.getElementById("predict-lifetime").addEventListener("click", async () => {
+      const el = document.getElementById("lifetime-result");
+      el.textContent = "Loading…";
+      try {
+        const result = await postJson("/predict/lifetime", readFeatures());
+        el.textContent = `Predicted LTV: ${result.predicted_ltv_months.toFixed(1)} months`;
+        el.classList.remove("error");
+      } catch (err) {
+        el.textContent = `Error: ${err.message}`;
+        el.classList.add("error");
+      }
+    });
+
+    document.getElementById("predict-upsell").addEventListener("click", async () => {
+      const el = document.getElementById("upsell-result");
+      el.textContent = "Loading…";
+      try {
+        const result = await postJson("/predict/upsell", readFeatures());
+        const pct = (result.upsell_probability * 100).toFixed(1);
+        el.textContent = `Upsell probability: ${pct}% (predicted: ${result.predicted_upsell ? "Yes" : "No"})`;
+        el.classList.remove("error");
+      } catch (err) {
+        el.textContent = `Error: ${err.message}`;
+        el.classList.add("error");
+      }
+    });
+
+    document.getElementById("predict-super-customer").addEventListener("click", async () => {
+      const el = document.getElementById("super-customer-result");
+      el.textContent = "Loading…";
+      try {
+        const result = await postJson("/predict/super-customer", readFeatures());
+        el.textContent = `Score: ${result.score} — ${result.tier}`;
+        el.classList.remove("error");
+      } catch (err) {
+        el.textContent = `Error: ${err.message}`;
+        el.classList.add("error");
+      }
+    });
+
+    document.getElementById("run-budget-optimization").addEventListener("click", async () => {
+      const el = document.getElementById("budget-result");
+      el.textContent = "Loading…";
+      try {
+        const monthlyBudget = Number(document.getElementById("monthly_budget").value);
+        const result = await postJson("/budget-optimization", { monthly_budget: monthlyBudget });
+        el.textContent = "";
+        const summary = document.createElement("p");
+        summary.textContent = `${result.n_campaigns} campaign profiles sampled.`;
+        el.appendChild(summary);
+        el.appendChild(renderTable(
+          result.scenarios,
+          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
+        ));
+        el.classList.remove("error");
+      } catch (err) {
+        el.textContent = `Error: ${err.message}`;
+        el.classList.add("error");
+      }
+    });
+
+    async function loadFollowupAnalysis() {
+      const el = document.getElementById("followup-result");
+      try {
+        const result = await getJson("/followup-analysis");
+        el.textContent = "";
+        el.appendChild(renderTable(
+          result.dropout_by_stage,
+          ["Stage", "Remaining Leads", "Drop From Previous Stage", "Drop Rate (%)"],
+        ));
+        const callStats = document.createElement("p");
+        callStats.textContent =
+          `Avg calls to close: ${result.call_stats.avg_calls_to_closed.toFixed(2)} — ` +
+          `Avg calls before giving up: ${result.call_stats.avg_calls_to_not_closed.toFixed(2)}`;
+        el.appendChild(callStats);
+        const conclusion = document.createElement("p");
+        conclusion.textContent = result.conclusion;
+        el.appendChild(conclusion);
+        const recommendation = document.createElement("p");
+        recommendation.innerHTML = `<strong>Recommendation:</strong> ${result.recommendation}`;
+        el.appendChild(recommendation);
+        el.classList.remove("error");
+      } catch (err) {
+        el.textContent = `Error: ${err.message}`;
+        el.classList.add("error");
+      }
+    }
 
     async function loadDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -25,20 +231,23 @@
         window.location.href = "/login";
         return;
       }
+      authHeaders = { Authorization: `Bearer ${session.access_token}` };
 
-      const headers = { Authorization: `Bearer ${session.access_token}` };
-      const [statsRes, customersRes] = await Promise.all([
-        fetch("/statistics", { headers }),
-        fetch("/customers?limit=10", { headers }),
-      ]);
-
-      if (statsRes.status === 401 || customersRes.status === 401) {
-        window.location.href = "/login";
-        return;
+      try {
+        const [stats, customers] = await Promise.all([
+          getJson("/statistics"),
+          getJson("/customers?limit=10"),
+        ]);
+        document.getElementById("statistics").textContent = JSON.stringify(stats, null, 2);
+        document.getElementById("customers").textContent = JSON.stringify(customers, null, 2);
+      } catch (err) {
+        if (err.message !== "Not authenticated") {
+          document.getElementById("statistics").textContent = `Error: ${err.message}`;
+          document.getElementById("customers").textContent = `Error: ${err.message}`;
+        }
       }
 
-      document.getElementById("statistics").textContent = JSON.stringify(await statsRes.json(), null, 2);
-      document.getElementById("customers").textContent = JSON.stringify(await customersRes.json(), null, 2);
+      loadFollowupAnalysis();
     }
 
     document.getElementById("signout").addEventListener("click", async () => {
