@@ -2,77 +2,346 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FunnelIQ — Dashboard</title>
   <script src="/static/vendor/supabase.js"></script>
+  <script src="/static/vendor/chart.js"></script>
   <script src="/static/config.js"></script>
   <style>
-    table { border-collapse: collapse; margin: 8px 0; }
-    th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: right; font-size: 14px; }
+    :root {
+      --bg: #0b0e14;
+      --surface: #12161f;
+      --surface-2: #171c27;
+      --border: #232838;
+      --text: #e6e8ee;
+      --text-dim: #8b92a5;
+      --accent-blue: #3b82f6;
+      --accent-green: #22c55e;
+      --accent-red: #ef4444;
+      --accent-orange: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding-bottom: 48px;
+    }
+    a { color: var(--accent-blue); }
+
+    /* Navbar */
+    .navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .navbar .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+    .navbar .logo span { color: var(--accent-blue); }
+    .navbar .user-area { display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--text-dim); }
+    .navbar button {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .navbar button:hover { border-color: var(--accent-blue); }
+
+    .page { max-width: 1080px; margin: 0 auto; padding: 24px; }
+
+    /* KPI row */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .kpi-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+    .kpi-card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+
+    /* Section cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .card h2 { margin: 0 0 4px 0; font-size: 18px; }
+    .card .subtitle { color: var(--text-dim); font-size: 13px; margin: 0 0 20px 0; }
+
+    /* Skeleton loading */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface-2) 25%, #1e2432 37%, var(--surface-2) 63%);
+      background-size: 400% 100%;
+      animation: skeleton-shimmer 1.4s ease infinite;
+      border-radius: 6px;
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
+    .skeleton-line { height: 14px; margin: 6px 0; }
+    .skeleton-block { height: 200px; }
+
+    /* Form */
+    .form-group { margin-bottom: 16px; }
+    .form-group h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      margin: 0 0 8px 0;
+    }
+    .field-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+    .field input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .field input:focus { outline: none; border-color: var(--accent-blue); }
+
+    .btn-primary {
+      background: var(--accent-blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+    /* Prediction result cards */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .result-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .result-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; }
+    .result-card .value { font-size: 24px; font-weight: 700; margin-top: 8px; }
+    .result-card .sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    .badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-orange { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+    .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+
+    /* Gauge */
+    .gauge {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      margin: 8px auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .gauge::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      background: var(--surface-2);
+    }
+    .gauge .gauge-value { position: relative; font-size: 22px; font-weight: 700; }
+
+    /* Mini stats */
+    .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+    .stat { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+    .stat .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+    .stat .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+    th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; }
     th:first-child, td:first-child { text-align: left; }
-    .error { color: red; }
-    .panel { margin-bottom: 32px; }
-    label { display: inline-block; width: 200px; }
-    input { width: 120px; }
+    th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 11px; }
+
+    .toggle-link { background: none; border: none; color: var(--accent-blue); cursor: pointer; font-size: 13px; padding: 0; }
+
+    .callout {
+      background: var(--surface-2);
+      border-left: 3px solid var(--accent-blue);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-top: 16px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .callout strong { color: var(--accent-blue); }
+
+    .error { color: var(--accent-red); font-size: 13px; }
+
+    .slider-row { display: flex; align-items: center; gap: 16px; }
+    .slider-row input[type="range"] { flex: 1; accent-color: var(--accent-blue); }
+    .slider-row .budget-readout { font-size: 20px; font-weight: 700; min-width: 110px; text-align: right; }
+
+    canvas { max-height: 260px; }
+
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .field-grid { grid-template-columns: repeat(2, 1fr); }
+      .result-grid { grid-template-columns: 1fr; }
+      .stat-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .field-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
-<body style="font-family: sans-serif; max-width: 720px; margin: 40px auto;">
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h1>FunnelIQ Dashboard</h1>
-    <button id="signout">Sign out</button>
+<body>
+  <div class="navbar">
+    <div class="logo">Funnel<span>IQ</span></div>
+    <div class="user-area">
+      <span id="user-email">…</span>
+      <button id="signout">Sign Out</button>
+    </div>
   </div>
 
-  <div class="panel">
-    <h2>Statistics</h2>
-    <pre id="statistics">Loading…</pre>
-  </div>
+  <div class="page">
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="label">Avg. Customer Lifetime</div><div class="value skeleton skeleton-line" id="kpi-lifetime"></div></div>
+      <div class="kpi-card"><div class="label">Avg. Upsell Rate</div><div class="value skeleton skeleton-line" id="kpi-upsell"></div></div>
+      <div class="kpi-card"><div class="label">Avg. CAC</div><div class="value skeleton skeleton-line" id="kpi-cac"></div></div>
+      <div class="kpi-card"><div class="label">Predicted Monthly Profit</div><div class="value skeleton skeleton-line" id="kpi-profit"></div></div>
+    </div>
 
-  <div class="panel">
-    <h2>Customers (first 10)</h2>
-    <pre id="customers">Loading…</pre>
-  </div>
+    <div class="card">
+      <h2>Customer Predictor</h2>
+      <p class="subtitle">Enter a customer's funnel data to predict their lifetime, upsell probability, and super-customer score.</p>
+      <form id="prediction-form">
+        <div class="form-group">
+          <h3>Lead Funnel</h3>
+          <div class="field-grid">
+            <div class="field"><label for="ad_budget">Ad budget (₪)</label><input type="number" id="ad_budget" value="5000" step="any" /></div>
+            <div class="field"><label for="num_leads">Total leads</label><input type="number" id="num_leads" value="100" step="any" /></div>
+            <div class="field"><label for="leads_answered">Leads answered</label><input type="number" id="leads_answered" value="80" step="any" /></div>
+            <div class="field"><label for="leads_not_answered">Leads not answered</label><input type="number" id="leads_not_answered" value="20" step="any" /></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <h3>Follow-ups Remaining</h3>
+          <div class="field-grid">
+            <div class="field"><label for="followup_1">Round 1</label><input type="number" id="followup_1" value="70" step="any" /></div>
+            <div class="field"><label for="followup_2">Round 2</label><input type="number" id="followup_2" value="60" step="any" /></div>
+            <div class="field"><label for="followup_3">Round 3</label><input type="number" id="followup_3" value="50" step="any" /></div>
+            <div class="field"><label for="followup_4">Round 4</label><input type="number" id="followup_4" value="40" step="any" /></div>
+          </div>
+          <div class="field-grid" style="margin-top: 12px;">
+            <div class="field"><label for="followup_5">Round 5</label><input type="number" id="followup_5" value="30" step="any" /></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <h3>Closing &amp; Cost</h3>
+          <div class="field-grid">
+            <div class="field"><label for="not_closed">Not closed</label><input type="number" id="not_closed" value="15" step="any" /></div>
+            <div class="field"><label for="closed">Closed</label><input type="number" id="closed" value="25" step="any" /></div>
+            <div class="field"><label for="calls_to_closed">Avg calls to close</label><input type="number" id="calls_to_closed" value="3.5" step="any" /></div>
+            <div class="field"><label for="calls_to_not_closed">Avg calls (not closed)</label><input type="number" id="calls_to_not_closed" value="4.0" step="any" /></div>
+          </div>
+          <div class="field-grid" style="margin-top: 12px;">
+            <div class="field"><label for="customer_acquisition_cost">Acquisition cost (₪)</label><input type="number" id="customer_acquisition_cost" value="200" step="any" /></div>
+            <div class="field"><label for="purchased">Purchased (0/1)</label><input type="number" id="purchased" value="1" min="0" max="1" step="1" /></div>
+          </div>
+        </div>
+        <button type="button" class="btn-primary" id="predict-btn">Predict</button>
+      </form>
 
-  <div class="panel">
-    <h2>Predictions</h2>
-    <form id="prediction-form">
-      <label for="ad_budget">Ad budget</label><input type="number" id="ad_budget" value="5000" step="any" /><br />
-      <label for="num_leads">Num leads</label><input type="number" id="num_leads" value="100" step="any" /><br />
-      <label for="leads_answered">Leads answered</label><input type="number" id="leads_answered" value="80" step="any" /><br />
-      <label for="leads_not_answered">Leads not answered</label><input type="number" id="leads_not_answered" value="20" step="any" /><br />
-      <label for="followup_1">Follow-up 1</label><input type="number" id="followup_1" value="70" step="any" /><br />
-      <label for="followup_2">Follow-up 2</label><input type="number" id="followup_2" value="60" step="any" /><br />
-      <label for="followup_3">Follow-up 3</label><input type="number" id="followup_3" value="50" step="any" /><br />
-      <label for="followup_4">Follow-up 4</label><input type="number" id="followup_4" value="40" step="any" /><br />
-      <label for="followup_5">Follow-up 5</label><input type="number" id="followup_5" value="30" step="any" /><br />
-      <label for="not_closed">Not closed</label><input type="number" id="not_closed" value="15" step="any" /><br />
-      <label for="closed">Closed</label><input type="number" id="closed" value="25" step="any" /><br />
-      <label for="calls_to_closed">Calls to closed</label><input type="number" id="calls_to_closed" value="3.5" step="any" /><br />
-      <label for="calls_to_not_closed">Calls to not closed</label><input type="number" id="calls_to_not_closed" value="4.0" step="any" /><br />
-      <label for="customer_acquisition_cost">Acquisition cost</label><input type="number" id="customer_acquisition_cost" value="200" step="any" /><br />
-      <label for="purchased">Purchased (0/1)</label><input type="number" id="purchased" value="1" min="0" max="1" step="1" /><br /><br />
-      <button type="button" id="predict-lifetime">Predict Lifetime</button>
-      <button type="button" id="predict-upsell">Predict Upsell</button>
-      <button type="button" id="predict-super-customer">Predict Super Customer</button>
-    </form>
-    <p id="lifetime-result"></p>
-    <p id="upsell-result"></p>
-    <p id="super-customer-result"></p>
-  </div>
+      <div class="result-grid" id="prediction-results" style="display: none;">
+        <div class="result-card">
+          <div class="label">Predicted Lifetime</div>
+          <div class="value" id="result-lifetime">—</div>
+          <div class="sub">months</div>
+        </div>
+        <div class="result-card">
+          <div class="label">Upsell Probability</div>
+          <div class="value" id="result-upsell">—</div>
+          <div id="result-upsell-badge"></div>
+        </div>
+        <div class="result-card">
+          <div class="label">Super Customer Score</div>
+          <div class="gauge" id="result-gauge"><span class="gauge-value" id="result-gauge-value">—</span></div>
+          <div class="sub" id="result-tier"></div>
+        </div>
+      </div>
+      <p class="error" id="prediction-error"></p>
+    </div>
 
-  <div class="panel">
-    <h2>Budget Optimization</h2>
-    <label for="monthly_budget">Monthly budget</label><input type="number" id="monthly_budget" value="50000" step="any" />
-    <button type="button" id="run-budget-optimization">Run simulation</button>
-    <div id="budget-result"></div>
-  </div>
+    <div class="card">
+      <h2>The Follow-up Paradox</h2>
+      <p class="subtitle">Stage-by-stage dropout across the funnel — is the sales manager right that follow-ups past the 3rd call are wasted?</p>
+      <div class="stat-row" id="followup-stats">
+        <div class="stat"><div class="label">Customers (live)</div><div class="value skeleton skeleton-line" id="stat-customers"></div></div>
+        <div class="stat"><div class="label">Avg calls to close</div><div class="value skeleton skeleton-line" id="stat-calls-closed"></div></div>
+        <div class="stat"><div class="label">Avg calls (not closed)</div><div class="value skeleton skeleton-line" id="stat-calls-not-closed"></div></div>
+      </div>
+      <div class="skeleton skeleton-block" id="followup-chart-skeleton"></div>
+      <canvas id="followup-chart" style="display: none;"></canvas>
+      <button type="button" class="toggle-link" id="toggle-followup-table" style="display: none;">See table →</button>
+      <div id="followup-table-container" style="display: none;"></div>
+      <div class="callout" id="followup-callout" style="display: none;"></div>
+      <p class="error" id="followup-error"></p>
+    </div>
 
-  <div class="panel">
-    <h2>Follow-up Analysis</h2>
-    <div id="followup-result">Loading…</div>
+    <div class="card">
+      <h2>Budget Simulator</h2>
+      <p class="subtitle">Compare allocation strategies for the monthly ad budget across real customer profiles.</p>
+      <div class="slider-row">
+        <input type="range" id="monthly_budget" min="10000" max="150000" step="1000" value="50000" />
+        <div class="budget-readout" id="budget-readout">₪50,000</div>
+      </div>
+      <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
+      <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
+      <canvas id="budget-chart" style="display: none;"></canvas>
+      <div id="budget-table-container"></div>
+      <p class="error" id="budget-error"></p>
+    </div>
   </div>
 
   <script>
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let authHeaders = null;
+
+    const TIER_HEX = { Low: "#ef4444", Medium: "#f59e0b", High: "#22c55e" };
 
     function readFeatures() {
       const ids = [
@@ -98,9 +367,7 @@
         window.location.href = "/login";
         throw new Error("Not authenticated");
       }
-      if (!response.ok) {
-        throw new Error(`Request to ${path} failed (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`Request to ${path} failed (${response.status})`);
       return response.json();
     }
 
@@ -110,13 +377,16 @@
         window.location.href = "/login";
         throw new Error("Not authenticated");
       }
-      if (!response.ok) {
-        throw new Error(`Request to ${path} failed (${response.status})`);
-      }
+      if (!response.ok) throw new Error(`Request to ${path} failed (${response.status})`);
       return response.json();
     }
 
-    function renderTable(rows, columns) {
+    function fmtMoney(n) {
+      return "₪" + Math.round(n).toLocaleString();
+    }
+
+    function renderTable(container, rows, columns) {
+      container.innerHTML = "";
       const table = document.createElement("table");
       const thead = table.insertRow();
       for (const col of columns) {
@@ -134,97 +404,209 @@
             : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value);
         }
       }
-      return table;
+      container.appendChild(table);
     }
 
-    document.getElementById("predict-lifetime").addEventListener("click", async () => {
-      const el = document.getElementById("lifetime-result");
-      el.textContent = "Loading…";
+    // ---------- Customer Predictor ----------
+    document.getElementById("predict-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("predict-btn");
+      const errorEl = document.getElementById("prediction-error");
+      const resultsEl = document.getElementById("prediction-results");
+      btn.disabled = true;
+      errorEl.textContent = "";
       try {
-        const result = await postJson("/predict/lifetime", readFeatures());
-        el.textContent = `Predicted LTV: ${result.predicted_ltv_months.toFixed(1)} months`;
-        el.classList.remove("error");
+        const features = readFeatures();
+        const [lifetime, upsell, superCustomer] = await Promise.all([
+          postJson("/predict/lifetime", features),
+          postJson("/predict/upsell", features),
+          postJson("/predict/super-customer", features),
+        ]);
+
+        document.getElementById("result-lifetime").textContent = lifetime.predicted_ltv_months.toFixed(1);
+
+        const upsellPct = (upsell.upsell_probability * 100).toFixed(1);
+        document.getElementById("result-upsell").textContent = upsellPct + "%";
+        const badgeEl = document.getElementById("result-upsell-badge");
+        badgeEl.innerHTML = upsell.predicted_upsell
+          ? '<span class="badge badge-orange">Flag for outreach</span>'
+          : '<span class="badge badge-green">Low priority</span>';
+
+        const tier = superCustomer.tier;
+        const gauge = document.getElementById("result-gauge");
+        const color = TIER_HEX[tier] || "#3b82f6";
+        gauge.style.background = `conic-gradient(${color} ${superCustomer.score * 3.6}deg, transparent 0deg)`;
+        document.getElementById("result-gauge-value").textContent = superCustomer.score;
+        document.getElementById("result-tier").textContent = tier + " tier";
+
+        resultsEl.style.display = "grid";
       } catch (err) {
-        el.textContent = `Error: ${err.message}`;
-        el.classList.add("error");
+        errorEl.textContent = `Error: ${err.message}`;
+      } finally {
+        btn.disabled = false;
       }
     });
 
-    document.getElementById("predict-upsell").addEventListener("click", async () => {
-      const el = document.getElementById("upsell-result");
-      el.textContent = "Loading…";
-      try {
-        const result = await postJson("/predict/upsell", readFeatures());
-        const pct = (result.upsell_probability * 100).toFixed(1);
-        el.textContent = `Upsell probability: ${pct}% (predicted: ${result.predicted_upsell ? "Yes" : "No"})`;
-        el.classList.remove("error");
-      } catch (err) {
-        el.textContent = `Error: ${err.message}`;
-        el.classList.add("error");
-      }
-    });
-
-    document.getElementById("predict-super-customer").addEventListener("click", async () => {
-      const el = document.getElementById("super-customer-result");
-      el.textContent = "Loading…";
-      try {
-        const result = await postJson("/predict/super-customer", readFeatures());
-        el.textContent = `Score: ${result.score} — ${result.tier}`;
-        el.classList.remove("error");
-      } catch (err) {
-        el.textContent = `Error: ${err.message}`;
-        el.classList.add("error");
-      }
-    });
-
-    document.getElementById("run-budget-optimization").addEventListener("click", async () => {
-      const el = document.getElementById("budget-result");
-      el.textContent = "Loading…";
-      try {
-        const monthlyBudget = Number(document.getElementById("monthly_budget").value);
-        const result = await postJson("/budget-optimization", { monthly_budget: monthlyBudget });
-        el.textContent = "";
-        const summary = document.createElement("p");
-        summary.textContent = `${result.n_campaigns} campaign profiles sampled.`;
-        el.appendChild(summary);
-        el.appendChild(renderTable(
-          result.scenarios,
-          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
-        ));
-        el.classList.remove("error");
-      } catch (err) {
-        el.textContent = `Error: ${err.message}`;
-        el.classList.add("error");
-      }
-    });
+    // ---------- Follow-up Analysis ----------
+    let followupTableVisible = false;
 
     async function loadFollowupAnalysis() {
-      const el = document.getElementById("followup-result");
+      const errorEl = document.getElementById("followup-error");
       try {
         const result = await getJson("/followup-analysis");
-        el.textContent = "";
-        el.appendChild(renderTable(
+
+        document.getElementById("stat-calls-closed").textContent = result.call_stats.avg_calls_to_closed.toFixed(2);
+        document.getElementById("stat-calls-closed").classList.remove("skeleton", "skeleton-line");
+        document.getElementById("stat-calls-not-closed").textContent = result.call_stats.avg_calls_to_not_closed.toFixed(2);
+        document.getElementById("stat-calls-not-closed").classList.remove("skeleton", "skeleton-line");
+
+        const stages = result.dropout_by_stage.map((r) => r.Stage);
+        const remaining = result.dropout_by_stage.map((r) => r["Remaining Leads"]);
+
+        document.getElementById("followup-chart-skeleton").style.display = "none";
+        const canvas = document.getElementById("followup-chart");
+        canvas.style.display = "block";
+        new Chart(canvas, {
+          type: "line",
+          data: {
+            labels: stages,
+            datasets: [{
+              label: "Remaining Leads",
+              data: remaining,
+              fill: true,
+              borderColor: "#3b82f6",
+              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              tension: 0.3,
+              pointBackgroundColor: "#3b82f6",
+            }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+              y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+            },
+          },
+        });
+
+        renderTable(
+          document.getElementById("followup-table-container"),
           result.dropout_by_stage,
           ["Stage", "Remaining Leads", "Drop From Previous Stage", "Drop Rate (%)"],
-        ));
-        const callStats = document.createElement("p");
-        callStats.textContent =
-          `Avg calls to close: ${result.call_stats.avg_calls_to_closed.toFixed(2)} — ` +
-          `Avg calls before giving up: ${result.call_stats.avg_calls_to_not_closed.toFixed(2)}`;
-        el.appendChild(callStats);
-        const conclusion = document.createElement("p");
-        conclusion.textContent = result.conclusion;
-        el.appendChild(conclusion);
-        const recommendation = document.createElement("p");
-        recommendation.innerHTML = `<strong>Recommendation:</strong> ${result.recommendation}`;
-        el.appendChild(recommendation);
-        el.classList.remove("error");
+        );
+
+        const toggleBtn = document.getElementById("toggle-followup-table");
+        toggleBtn.style.display = "inline-block";
+        toggleBtn.addEventListener("click", () => {
+          followupTableVisible = !followupTableVisible;
+          document.getElementById("followup-table-container").style.display = followupTableVisible ? "block" : "none";
+          toggleBtn.textContent = followupTableVisible ? "Hide table" : "See table →";
+        });
+
+        const calloutEl = document.getElementById("followup-callout");
+        calloutEl.style.display = "block";
+        calloutEl.innerHTML = `${result.conclusion}<br /><br /><strong>Recommendation:</strong> ${result.recommendation}`;
+
+        return result;
       } catch (err) {
-        el.textContent = `Error: ${err.message}`;
-        el.classList.add("error");
+        if (err.message !== "Not authenticated") errorEl.textContent = `Error: ${err.message}`;
+        return null;
       }
     }
 
+    // ---------- Budget Simulator ----------
+    const budgetSlider = document.getElementById("monthly_budget");
+    const budgetReadout = document.getElementById("budget-readout");
+    budgetSlider.addEventListener("input", () => {
+      budgetReadout.textContent = fmtMoney(Number(budgetSlider.value));
+    });
+
+    let budgetChart = null;
+
+    async function runBudgetOptimization() {
+      const errorEl = document.getElementById("budget-error");
+      const summaryEl = document.getElementById("budget-summary");
+      errorEl.textContent = "";
+      try {
+        const monthlyBudget = Number(budgetSlider.value);
+        const result = await postJson("/budget-optimization", { monthly_budget: monthlyBudget });
+
+        summaryEl.textContent = `Recommended: ${result.n_campaigns} campaign profiles sampled from live data.`;
+
+        const canvas = document.getElementById("budget-chart");
+        canvas.style.display = "block";
+        const best = Math.max(...result.scenarios.map((s) => s["Predicted Profit"]));
+        const colors = result.scenarios.map((s) => (s["Predicted Profit"] === best ? "#22c55e" : "#3b82f6"));
+
+        if (budgetChart) budgetChart.destroy();
+        budgetChart = new Chart(canvas, {
+          type: "bar",
+          data: {
+            labels: result.scenarios.map((s) => s.Scenario),
+            datasets: [{
+              label: "Predicted Profit",
+              data: result.scenarios.map((s) => s["Predicted Profit"]),
+              backgroundColor: colors,
+              borderRadius: 6,
+            }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: "#8b92a5" }, grid: { display: false } },
+              y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+            },
+          },
+        });
+
+        renderTable(
+          document.getElementById("budget-table-container"),
+          result.scenarios,
+          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
+        );
+
+        return result;
+      } catch (err) {
+        errorEl.textContent = `Error: ${err.message}`;
+        return null;
+      }
+    }
+
+    document.getElementById("run-budget-optimization").addEventListener("click", runBudgetOptimization);
+
+    // ---------- KPI row ----------
+    function setKpi(id, text) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.classList.remove("skeleton", "skeleton-line");
+    }
+
+    async function loadKpis() {
+      try {
+        const stats = await getJson("/statistics");
+        setKpi("kpi-lifetime", stats.avg_ltv_months != null ? stats.avg_ltv_months.toFixed(1) + " mo" : "—");
+        setKpi("kpi-upsell", stats.upsell_rate != null ? (stats.upsell_rate * 100).toFixed(0) + "%" : "—");
+        setKpi("kpi-cac", stats.avg_customer_acquisition_cost != null ? fmtMoney(stats.avg_customer_acquisition_cost) : "—");
+        setKpi("stat-customers", stats.total_customers.toLocaleString());
+      } catch (err) {
+        if (err.message !== "Not authenticated") {
+          setKpi("kpi-lifetime", "—");
+          setKpi("kpi-upsell", "—");
+          setKpi("kpi-cac", "—");
+        }
+      }
+
+      try {
+        const budget = await postJson("/budget-optimization", { monthly_budget: 50000 });
+        const equalScenario = budget.scenarios.find((s) => s.Scenario.startsWith("1."));
+        setKpi("kpi-profit", equalScenario ? fmtMoney(equalScenario["Predicted Profit"]) : "—");
+      } catch (err) {
+        if (err.message !== "Not authenticated") setKpi("kpi-profit", "—");
+      }
+    }
+
+    // ---------- Page init ----------
     async function loadDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -232,21 +614,9 @@
         return;
       }
       authHeaders = { Authorization: `Bearer ${session.access_token}` };
+      document.getElementById("user-email").textContent = session.user.email;
 
-      try {
-        const [stats, customers] = await Promise.all([
-          getJson("/statistics"),
-          getJson("/customers?limit=10"),
-        ]);
-        document.getElementById("statistics").textContent = JSON.stringify(stats, null, 2);
-        document.getElementById("customers").textContent = JSON.stringify(customers, null, 2);
-      } catch (err) {
-        if (err.message !== "Not authenticated") {
-          document.getElementById("statistics").textContent = `Error: ${err.message}`;
-          document.getElementById("customers").textContent = `Error: ${err.message}`;
-        }
-      }
-
+      loadKpis();
       loadFollowupAnalysis();
     }
 

@@ -5,8 +5,24 @@ from backend.main import app
 from backend.supabase_client import get_supabase_admin_client
 
 FAKE_ROWS = [
-    {"num_leads": 10, "closed": 2, "referred": True, "upsell": True, "cumulative_profit": 1000.0, "ltv_months": 12.0},
-    {"num_leads": 20, "closed": 4, "referred": False, "upsell": False, "cumulative_profit": None, "ltv_months": None},
+    {
+        "num_leads": 10,
+        "closed": 2,
+        "referred": True,
+        "upsell": True,
+        "cumulative_profit": 1000.0,
+        "ltv_months": 12.0,
+        "customer_acquisition_cost": 500.0,
+    },
+    {
+        "num_leads": 20,
+        "closed": 4,
+        "referred": False,
+        "upsell": False,
+        "cumulative_profit": None,
+        "ltv_months": None,
+        "customer_acquisition_cost": 300.0,
+    },
 ]
 
 
@@ -60,3 +76,4 @@ def test_get_statistics():
     assert body["upsell_rate"] == 0.5
     assert body["avg_cumulative_profit"] == 1000.0
     assert body["avg_ltv_months"] == 12.0
+    assert body["avg_customer_acquisition_cost"] == 400.0
