@@ -227,6 +227,8 @@
     .slider-row .budget-readout { font-size: 20px; font-weight: 700; min-width: 110px; text-align: right; }
 
     canvas { max-height: 260px; }
+    .chart-container { position: relative; height: 440px; }
+    .chart-container canvas { max-height: none; height: 100% !important; }
 
     @media (max-width: 900px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -328,8 +330,8 @@
         <div class="stat"><div class="label">Avg calls (not closed)</div><div class="value skeleton skeleton-line" id="stat-calls-not-closed"></div></div>
       </div>
       <div class="followup-grid">
-        <div>
-          <div class="skeleton skeleton-block" id="followup-chart-skeleton"></div>
+        <div class="chart-container" id="followup-chart-container">
+          <div class="skeleton skeleton-block" id="followup-chart-skeleton" style="height: 100%;"></div>
           <canvas id="followup-chart" style="display: none;"></canvas>
         </div>
         <div>
@@ -510,6 +512,7 @@
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
