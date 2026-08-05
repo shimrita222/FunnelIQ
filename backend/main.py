@@ -71,7 +71,10 @@ def get_statistics(
     supabase: Client = Depends(get_supabase_admin_client),
     _user=Depends(get_current_user),
 ):
-    rows = _fetch_all(supabase, "num_leads,closed,referred,upsell,cumulative_profit,ltv_months")
+    rows = _fetch_all(
+        supabase,
+        "num_leads,closed,referred,upsell,cumulative_profit,ltv_months,customer_acquisition_cost",
+    )
     total = len(rows)
 
     def avg(values: list[float]) -> float | None:
@@ -84,4 +87,7 @@ def get_statistics(
         "upsell_rate": (sum(1 for r in rows if r["upsell"]) / total) if total else None,
         "avg_cumulative_profit": avg([r["cumulative_profit"] for r in rows if r["cumulative_profit"] is not None]),
         "avg_ltv_months": avg([r["ltv_months"] for r in rows if r["ltv_months"] is not None]),
+        "avg_customer_acquisition_cost": avg(
+            [r["customer_acquisition_cost"] for r in rows if r["customer_acquisition_cost"] is not None]
+        ),
     }
