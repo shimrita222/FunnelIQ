@@ -3,11 +3,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from supabase import Client
 
+from backend import predictions
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
 
 app = FastAPI(title="FunnelIQ")
 app.mount("/static", StaticFiles(directory="frontend"), name="static")
+app.include_router(predictions.router)
 
 
 @app.get("/")
