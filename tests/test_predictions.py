@@ -121,3 +121,16 @@ def test_followup_analysis():
     assert "avg_calls_to_closed" in body["call_stats"]
     assert body["conclusion"]
     assert body["recommendation"]
+
+
+def test_conversion_by_budget_tier():
+    response = client.get("/conversion-by-budget-tier")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["tiers"]) == 4
+    assert {row["Budget Tier"] for row in body["tiers"]} == {
+        "Low (<=1500)",
+        "Gap (1500-2000)",
+        "Mid (2000-5000)",
+        "High (>5000)",
+    }

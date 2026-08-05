@@ -16,6 +16,7 @@ from supabase import Client
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
 from budget_simulation import simulate_budget_scenarios
+from budget_tier_analysis import calculate_conversion_by_tier
 from followup_metrics import (
     analyze_sales_calls,
     calculate_dropout_rates,
@@ -153,4 +154,17 @@ def followup_analysis(
         "call_stats": call_stats,
         "conclusion": summary["conclusion"],
         "recommendation": summary["recommendation"],
+    }
+
+
+@router.get("/conversion-by-budget-tier")
+def conversion_by_budget_tier(
+    supabase: Client = Depends(get_supabase_admin_client),
+    _user=Depends(get_current_user),
+):
+    rows = _fetch_all(supabase, "ad_budget,closed,num_leads")
+    df = pd.DataFrame(rows)
+    tiers = calculate_conversion_by_tier(df)
+    return {
+        "tiers": tiers.astype(object).where(tiers.notna(), None).to_dict(orient="records"),
     }

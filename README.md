@@ -567,6 +567,12 @@ endpoints require auth, same as `/customers`/`/statistics`.
 - `GET /followup-analysis` — Package 5's dropout/call-effort analysis, run
   live against current Supabase data instead of the frozen CSV → dropout-by-stage
   table, call stats, and the business conclusion/recommendation.
+- `GET /conversion-by-budget-tier` — Package 1's Low/Mid/High conversion-rate
+  finding, recomputed live against current Supabase data via
+  `budget_tier_analysis.calculate_conversion_by_tier` (same tier boundaries as
+  `exploration_and_cleaning.py`, which now imports `assign_budget_tier` from
+  this shared module instead of defining it inline) → average conversion rate
+  and observation count per tier.
 
 The first three take the same 15-feature request body (`ad_budget`,
 `num_leads`, `leads_answered`, `leads_not_answered`, `followup_1`..`followup_5`,

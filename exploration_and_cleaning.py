@@ -18,6 +18,8 @@ import pandas as pd
 import seaborn as sns
 from scipy.stats import pearsonr
 
+from budget_tier_analysis import assign_budget_tier
+
 sns.set_theme(style="whitegrid")
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -332,23 +334,6 @@ conversion_analysis = pd.DataFrame(
         "ad_budget": df_clean["ad_budget"],
     }
 )
-
-
-def assign_budget_tier(ad_budget: float) -> str:
-    """Bucket ad_budget into the brief's Low/Mid/High tiers.
-
-    Note: the brief defines Low as <=1500 and Mid as 2000-5000, leaving a gap
-    between 1500 and 2000 that belongs to neither tier. Rows in that gap are
-    labeled "Gap (1500-2000)" and reported separately rather than silently
-    forced into an adjacent tier.
-    """
-    if ad_budget <= 1500:
-        return "Low (<=1500)"
-    if ad_budget < 2000:
-        return "Gap (1500-2000)"
-    if ad_budget <= 5000:
-        return "Mid (2000-5000)"
-    return "High (>5000)"
 
 
 conversion_analysis["budget_tier"] = conversion_analysis["ad_budget"].apply(assign_budget_tier)
