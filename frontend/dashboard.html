@@ -355,6 +355,7 @@
       <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
+      <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
       <p class="error" id="budget-error"></p>
     </div>
@@ -574,21 +575,22 @@
         const monthlyBudget = Number(budgetSlider.value);
         const result = await postJson("/budget-optimization", { monthly_budget: monthlyBudget });
 
-        const best = Math.max(...result.scenarios.map((s) => s["Predicted Profit"]));
-        summaryEl.textContent = `Recommended: ${result.n_campaigns} campaigns → predicted total profit ${fmtMoney(best)}`;
+        const byCount = [...result.by_campaign_count].sort((a, b) => b.predicted_profit - a.predicted_profit);
+        const bestCount = byCount[0];
+        summaryEl.textContent = `Recommended: ${bestCount.n_campaigns} campaigns → predicted total profit ${fmtMoney(bestCount.predicted_profit)}`;
 
         const canvas = document.getElementById("budget-chart");
         canvas.style.display = "block";
-        const colors = result.scenarios.map((s) => (s["Predicted Profit"] === best ? "#22c55e" : "#3b82f6"));
+        const colors = byCount.map((_, i) => (i === 0 ? "#22c55e" : "#3b82f6"));
 
         if (budgetChart) budgetChart.destroy();
         budgetChart = new Chart(canvas, {
           type: "bar",
           data: {
-            labels: result.scenarios.map((s) => s.Scenario),
+            labels: byCount.map((s) => `${s.n_campaigns} campaign${s.n_campaigns === 1 ? "" : "s"}`),
             datasets: [{
               label: "Predicted Profit",
-              data: result.scenarios.map((s) => s["Predicted Profit"]),
+              data: byCount.map((s) => s.predicted_profit),
               backgroundColor: colors,
               borderRadius: 6,
             }],
@@ -603,6 +605,7 @@
           },
         });
 
+        document.getElementById("budget-table-heading").style.display = "block";
         renderTable(
           document.getElementById("budget-table-container"),
           result.scenarios,

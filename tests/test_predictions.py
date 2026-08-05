@@ -111,6 +111,9 @@ def test_budget_optimization():
         "3. Decrease Budget -20%",
         "4. Profit-Weighted Allocation",
     }
+    # FAKE_CUSTOMER_ROWS only has 15 rows, so campaign counts above the pool
+    # size (25, 50) are skipped — only 1/5/10 remain.
+    assert {s["n_campaigns"] for s in body["by_campaign_count"]} == {1, 5, 10}
 
 
 def test_followup_analysis():

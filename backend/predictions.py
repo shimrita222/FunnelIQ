@@ -15,7 +15,7 @@ from supabase import Client
 
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
-from budget_simulation import simulate_budget_scenarios
+from budget_simulation import simulate_budget_scenarios, simulate_by_campaign_count
 from budget_tier_analysis import calculate_conversion_by_tier
 from followup_metrics import (
     analyze_sales_calls,
@@ -130,7 +130,14 @@ def budget_optimization(
     scenarios = simulate_budget_scenarios(
         _budget_bundle["model"], profile_sample, monthly_budget=request.monthly_budget
     )
-    return {"n_campaigns": n_campaigns, "scenarios": scenarios.to_dict(orient="records")}
+    by_campaign_count = simulate_by_campaign_count(
+        _budget_bundle["model"], profiles, monthly_budget=request.monthly_budget
+    )
+    return {
+        "n_campaigns": n_campaigns,
+        "scenarios": scenarios.to_dict(orient="records"),
+        "by_campaign_count": by_campaign_count.to_dict(orient="records"),
+    }
 
 
 @router.get("/followup-analysis")
