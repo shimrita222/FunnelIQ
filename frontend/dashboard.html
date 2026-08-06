@@ -163,25 +163,15 @@
     .badge-orange { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
     .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
 
-    /* Gauge */
-    .gauge {
-      width: 96px;
-      height: 96px;
-      border-radius: 50%;
-      margin: 8px auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
+    /* Score progress bar */
+    .progress-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      margin-top: 10px;
+      overflow: hidden;
     }
-    .gauge::before {
-      content: "";
-      position: absolute;
-      inset: 8px;
-      border-radius: 50%;
-      background: var(--surface-2);
-    }
-    .gauge .gauge-value { position: relative; font-size: 22px; font-weight: 700; }
+    .progress-fill { height: 100%; border-radius: 999px; transition: width 0.3s ease; }
 
     /* Mini stats */
     .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
@@ -196,6 +186,18 @@
     th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 11px; }
 
     .toggle-link { background: none; border: none; color: var(--accent-blue); cursor: pointer; font-size: 13px; padding: 0; }
+
+    .followup-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; margin-top: 16px; }
+    .followup-grid > div { min-width: 0; }
+    .mini-heading {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      margin: 0 0 4px 0;
+    }
+    .followup-grid table { font-size: 12px; }
+    .followup-grid th, .followup-grid td { padding: 6px 8px; }
 
     .callout {
       background: var(--surface-2);
@@ -215,12 +217,15 @@
     .slider-row .budget-readout { font-size: 20px; font-weight: 700; min-width: 110px; text-align: right; }
 
     canvas { max-height: 260px; }
+    .chart-container { position: relative; height: 440px; width: 100%; min-width: 0; overflow: hidden; }
+    .chart-container canvas { max-height: none; width: 100% !important; height: 100% !important; }
 
     @media (max-width: 900px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
       .field-grid { grid-template-columns: repeat(2, 1fr); }
       .result-grid { grid-template-columns: 1fr; }
       .stat-row { grid-template-columns: 1fr; }
+      .followup-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 520px) {
       .kpi-grid { grid-template-columns: 1fr; }
@@ -299,7 +304,8 @@
         </div>
         <div class="result-card">
           <div class="label">Super Customer Score</div>
-          <div class="gauge" id="result-gauge"><span class="gauge-value" id="result-gauge-value">—</span></div>
+          <div class="value" id="result-gauge-value">—</div>
+          <div class="progress-track"><div class="progress-fill" id="result-gauge-fill" style="width: 0%;"></div></div>
           <div class="sub" id="result-tier"></div>
         </div>
       </div>
@@ -314,10 +320,20 @@
         <div class="stat"><div class="label">Avg calls to close</div><div class="value skeleton skeleton-line" id="stat-calls-closed"></div></div>
         <div class="stat"><div class="label">Avg calls (not closed)</div><div class="value skeleton skeleton-line" id="stat-calls-not-closed"></div></div>
       </div>
-      <div class="skeleton skeleton-block" id="followup-chart-skeleton"></div>
-      <canvas id="followup-chart" style="display: none;"></canvas>
-      <button type="button" class="toggle-link" id="toggle-followup-table" style="display: none;">See table →</button>
-      <div id="followup-table-container" style="display: none;"></div>
+      <div class="followup-grid">
+        <div class="chart-container" id="followup-chart-container">
+          <div class="skeleton skeleton-block" id="followup-chart-skeleton" style="height: 100%;"></div>
+          <canvas id="followup-chart" style="display: none;"></canvas>
+        </div>
+        <div>
+          <h3 class="mini-heading">Dropout by Stage</h3>
+          <div class="skeleton skeleton-line" id="followup-table-skeleton" style="height: 140px;"></div>
+          <div id="followup-table-container"></div>
+          <h3 class="mini-heading" style="margin-top: 20px;">Conversion by Budget Tier</h3>
+          <div class="skeleton skeleton-line" id="budget-tier-table-skeleton" style="height: 100px;"></div>
+          <div id="budget-tier-table-container"></div>
+        </div>
+      </div>
       <div class="callout" id="followup-callout" style="display: none;"></div>
       <p class="error" id="followup-error"></p>
     </div>
@@ -332,12 +348,14 @@
       <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
+      <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
       <p class="error" id="budget-error"></p>
     </div>
   </div>
 
   <script>
+   (function () {
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let authHeaders = null;
 
@@ -432,9 +450,10 @@
           : '<span class="badge badge-green">Low priority</span>';
 
         const tier = superCustomer.tier;
-        const gauge = document.getElementById("result-gauge");
         const color = TIER_HEX[tier] || "#3b82f6";
-        gauge.style.background = `conic-gradient(${color} ${superCustomer.score * 3.6}deg, transparent 0deg)`;
+        const fill = document.getElementById("result-gauge-fill");
+        fill.style.width = `${superCustomer.score}%`;
+        fill.style.background = color;
         document.getElementById("result-gauge-value").textContent = superCustomer.score;
         document.getElementById("result-tier").textContent = tier + " tier";
 
@@ -447,11 +466,14 @@
     });
 
     // ---------- Follow-up Analysis ----------
-    let followupTableVisible = false;
+    let followupChart = null;
 
     async function loadFollowupAnalysis() {
       const errorEl = document.getElementById("followup-error");
       try {
+        if (typeof Chart === "undefined") {
+          throw new Error("Chart.js failed to load — check /static/vendor/chart.js is reachable");
+        }
         const result = await getJson("/followup-analysis");
 
         document.getElementById("stat-calls-closed").textContent = result.call_stats.avg_calls_to_closed.toFixed(2);
@@ -465,7 +487,8 @@
         document.getElementById("followup-chart-skeleton").style.display = "none";
         const canvas = document.getElementById("followup-chart");
         canvas.style.display = "block";
-        new Chart(canvas, {
+        if (followupChart) followupChart.destroy();
+        followupChart = new Chart(canvas, {
           type: "line",
           data: {
             labels: stages,
@@ -481,6 +504,7 @@
           },
           options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
@@ -489,19 +513,12 @@
           },
         });
 
+        document.getElementById("followup-table-skeleton").style.display = "none";
         renderTable(
           document.getElementById("followup-table-container"),
           result.dropout_by_stage,
           ["Stage", "Remaining Leads", "Drop From Previous Stage", "Drop Rate (%)"],
         );
-
-        const toggleBtn = document.getElementById("toggle-followup-table");
-        toggleBtn.style.display = "inline-block";
-        toggleBtn.addEventListener("click", () => {
-          followupTableVisible = !followupTableVisible;
-          document.getElementById("followup-table-container").style.display = followupTableVisible ? "block" : "none";
-          toggleBtn.textContent = followupTableVisible ? "Hide table" : "See table →";
-        });
 
         const calloutEl = document.getElementById("followup-callout");
         calloutEl.style.display = "block";
@@ -511,6 +528,25 @@
       } catch (err) {
         if (err.message !== "Not authenticated") errorEl.textContent = `Error: ${err.message}`;
         return null;
+      }
+    }
+
+    async function loadConversionByBudgetTier() {
+      const errorEl = document.getElementById("followup-error");
+      try {
+        const result = await getJson("/conversion-by-budget-tier");
+        document.getElementById("budget-tier-table-skeleton").style.display = "none";
+        const rows = result.tiers.map((row) => ({
+          ...row,
+          "Avg Conversion Rate": row.avg_conversion_rate != null ? (row.avg_conversion_rate * 100).toFixed(1) + "%" : "—",
+        }));
+        renderTable(
+          document.getElementById("budget-tier-table-container"),
+          rows,
+          ["Budget Tier", "Avg Conversion Rate", "n_observations"],
+        );
+      } catch (err) {
+        if (err.message !== "Not authenticated") errorEl.textContent = `Error: ${err.message}`;
       }
     }
 
@@ -528,24 +564,28 @@
       const summaryEl = document.getElementById("budget-summary");
       errorEl.textContent = "";
       try {
+        if (typeof Chart === "undefined") {
+          throw new Error("Chart.js failed to load — check /static/vendor/chart.js is reachable");
+        }
         const monthlyBudget = Number(budgetSlider.value);
         const result = await postJson("/budget-optimization", { monthly_budget: monthlyBudget });
 
-        summaryEl.textContent = `Recommended: ${result.n_campaigns} campaign profiles sampled from live data.`;
+        const byCount = [...result.by_campaign_count].sort((a, b) => b.predicted_profit - a.predicted_profit);
+        const bestCount = byCount[0];
+        summaryEl.textContent = `Recommended: ${bestCount.n_campaigns} campaigns → predicted total profit ${fmtMoney(bestCount.predicted_profit)}`;
 
         const canvas = document.getElementById("budget-chart");
         canvas.style.display = "block";
-        const best = Math.max(...result.scenarios.map((s) => s["Predicted Profit"]));
-        const colors = result.scenarios.map((s) => (s["Predicted Profit"] === best ? "#22c55e" : "#3b82f6"));
+        const colors = byCount.map((_, i) => (i === 0 ? "#22c55e" : "#3b82f6"));
 
         if (budgetChart) budgetChart.destroy();
         budgetChart = new Chart(canvas, {
           type: "bar",
           data: {
-            labels: result.scenarios.map((s) => s.Scenario),
+            labels: byCount.map((s) => `${s.n_campaigns} campaign${s.n_campaigns === 1 ? "" : "s"}`),
             datasets: [{
               label: "Predicted Profit",
-              data: result.scenarios.map((s) => s["Predicted Profit"]),
+              data: byCount.map((s) => s.predicted_profit),
               backgroundColor: colors,
               borderRadius: 6,
             }],
@@ -560,6 +600,7 @@
           },
         });
 
+        document.getElementById("budget-table-heading").style.display = "block";
         renderTable(
           document.getElementById("budget-table-container"),
           result.scenarios,
@@ -594,6 +635,7 @@
           setKpi("kpi-lifetime", "—");
           setKpi("kpi-upsell", "—");
           setKpi("kpi-cac", "—");
+          setKpi("stat-customers", "—");
         }
       }
 
@@ -618,6 +660,7 @@
 
       loadKpis();
       loadFollowupAnalysis();
+      loadConversionByBudgetTier();
     }
 
     document.getElementById("signout").addEventListener("click", async () => {
@@ -626,6 +669,7 @@
     });
 
     loadDashboard();
+   })();
   </script>
 </body>
 </html>

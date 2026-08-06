@@ -111,6 +111,9 @@ def test_budget_optimization():
         "3. Decrease Budget -20%",
         "4. Profit-Weighted Allocation",
     }
+    # FAKE_CUSTOMER_ROWS only has 15 rows, so campaign counts above the pool
+    # size (25, 50) are skipped — only 1/5/10 remain.
+    assert {s["n_campaigns"] for s in body["by_campaign_count"]} == {1, 5, 10}
 
 
 def test_followup_analysis():
@@ -121,3 +124,16 @@ def test_followup_analysis():
     assert "avg_calls_to_closed" in body["call_stats"]
     assert body["conclusion"]
     assert body["recommendation"]
+
+
+def test_conversion_by_budget_tier():
+    response = client.get("/conversion-by-budget-tier")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["tiers"]) == 4
+    assert {row["Budget Tier"] for row in body["tiers"]} == {
+        "Low (<=1500)",
+        "Gap (1500-2000)",
+        "Mid (2000-5000)",
+        "High (>5000)",
+    }

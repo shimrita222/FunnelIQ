@@ -64,3 +64,28 @@ def simulate_budget_scenarios(
     scenarios["Profit Difference"] = scenarios["Predicted Profit"] - scenario_1_profit
     scenarios["ROI"] = (scenarios["Predicted Profit"] - scenarios["Total Budget"]) / scenarios["Total Budget"]
     return scenarios[["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"]]
+
+
+def simulate_by_campaign_count(
+    model,
+    profile_pool: pd.DataFrame,
+    monthly_budget: float = 50_000,
+    campaign_counts: tuple[int, ...] = (1, 5, 10, 25, 50),
+    random_state: int = 0,
+) -> pd.DataFrame:
+    """Compare spreading the same total budget across different campaign counts.
+
+    For each candidate count N, samples N real profiles from `profile_pool`,
+    splits `monthly_budget` equally across them (`ad_budget = monthly_budget / N`
+    per profile, every other feature held at its original value), and sums the
+    model's predicted profit. Counts larger than the pool size are skipped.
+    """
+    rows = []
+    for n in campaign_counts:
+        if n > len(profile_pool):
+            continue
+        sample = profile_pool.sample(n=n, random_state=random_state).copy()
+        sample["ad_budget"] = monthly_budget / n
+        predicted_profit = model.predict(sample).sum()
+        rows.append({"n_campaigns": n, "predicted_profit": predicted_profit})
+    return pd.DataFrame(rows)
