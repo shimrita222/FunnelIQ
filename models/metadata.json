@@ -1,0 +1,61 @@
+{
+  "customer_lifetime_model": {
+    "model_name": "CatBoost",
+    "target": "ltv_months",
+    "training_date": "2026-08-07T18:36:52.627282+00:00",
+    "version": "1.0",
+    "holdout_rmse": 3.0916793465493546,
+    "holdout_r2": 0.9382809759791635
+  },
+  "upsell_model": {
+    "model_name": "CatBoost",
+    "target": "upsell",
+    "training_date": "2026-08-07T18:37:04.201616+00:00",
+    "version": "1.0",
+    "cv_f1": 0.7664170913693941,
+    "cv_accuracy": 0.7811625983418932
+  },
+  "super_customer_model": {
+    "model_name": "CatBoost",
+    "target": "referred",
+    "training_date": "2026-08-07T18:37:04.492351+00:00",
+    "version": "1.0",
+    "holdout_accuracy": 0.7578796561604585,
+    "holdout_f1": 0.7197346600331676
+  },
+  "budget_optimizer_model": {
+    "model_name": "LightGBM",
+    "target": "cumulative_profit",
+    "training_date": "2026-08-07T18:37:14.068145+00:00",
+    "version": "1.0",
+    "cv_r2": 0.7625714597784017,
+    "cv_rmse": 5355.742014108666,
+    "driver_directions": {
+      "leads_answered": {
+        "direction": "negative",
+        "effect": -4298.66673637585,
+        "strength": "strong"
+      },
+      "customer_acquisition_cost": {
+        "direction": "negative",
+        "effect": -2977.581014262687,
+        "strength": "strong"
+      },
+      "leads_not_answered": {
+        "direction": "positive",
+        "effect": 1619.3133414462209,
+        "strength": "medium"
+      },
+      "num_leads": {
+        "direction": "positive",
+        "effect": 596.3580108548031,
+        "strength": "medium"
+      },
+      "followup_1": {
+        "direction": "positive",
+        "effect": 578.2877832731501,
+        "strength": "weak"
+      }
+    }
+  }
+}

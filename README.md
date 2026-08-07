@@ -567,8 +567,22 @@ endpoints require auth, same as `/customers`/`/statistics`.
   `{"score": float, "tier": "Low"|"Medium"|"High"}`
 - `POST /budget-optimization` — samples `N = round(monthly_budget / mean(ad_budget))`
   real customer profiles from live Supabase data and runs Package 6's
-  4-scenario simulation (`simulate_budget_scenarios`) against them → the
-  scenario comparison table as JSON. Body: `{"monthly_budget": 50000}` (optional, defaults to 50,000).
+  4-scenario simulation (`simulate_budget_scenarios`) plus a campaign-count
+  sweep (`simulate_by_campaign_count`, 1/5/10/25/50 campaigns) against them.
+  Body: `{"monthly_budget": 50000}` (optional, defaults to 50,000). Also
+  returns a business-intelligence layer built from the trained model's own
+  metadata (`models/metadata.json`, generated at export time — see
+  `scripts/export_models.py`), not recomputed per request: `executive_summary`
+  (recommended strategy, expected profit, estimated improvement, confidence),
+  a 3-part `analysis` (business insight / key observation / business impact),
+  `recommendation` + `why`, `confidence`/`confidence_score`/`confidence_explanation`
+  (combines the model's cross-validation R² with how clearly the best scenario
+  leads the alternatives), `top_drivers` (feature + importance + a plain-language
+  business-impact sentence, derived from a two-point partial-dependence check
+  against the model's own predictions — not a live correlation, which can
+  disagree with what a tree model actually learned), and `risks`/`opportunities`
+  each split into `data_driven` (only added when a real computed signal
+  supports it) vs. `general` (labeled guidance, never presented as a finding).
 - `GET /followup-analysis` — Package 5's dropout/call-effort analysis, run
   live against current Supabase data instead of the frozen CSV → dropout-by-stage
   table, call stats, and the business conclusion/recommendation.

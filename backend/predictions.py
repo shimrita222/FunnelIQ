@@ -5,6 +5,7 @@ protecting `/customers`/`/statistics` — FunnelIQ is an internal tool, and
 these predictions are no exception.
 """
 
+import json
 from pathlib import Path
 
 import joblib
@@ -15,7 +16,16 @@ from supabase import Client
 
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
-from budget_simulation import simulate_budget_scenarios, simulate_by_campaign_count
+from budget_simulation import (
+    calculate_feature_importance,
+    calculate_recommendation_confidence,
+    describe_driver_business_impact,
+    generate_budget_business_analysis,
+    generate_budget_risks_and_opportunities,
+    generate_business_report,
+    simulate_budget_scenarios,
+    simulate_by_campaign_count,
+)
 from budget_tier_analysis import calculate_conversion_by_tier
 from followup_metrics import (
     analyze_sales_calls,
@@ -39,6 +49,7 @@ _lifetime_bundle = _load("customer_lifetime_model")
 _upsell_bundle = _load("upsell_model")
 _super_customer_bundle = _load("super_customer_model")
 _budget_bundle = _load("budget_optimizer_model")
+_model_metadata = json.loads((MODELS_DIR / "metadata.json").read_text())
 
 
 class CustomerFeatures(BaseModel):
@@ -133,10 +144,61 @@ def budget_optimization(
     by_campaign_count = simulate_by_campaign_count(
         _budget_bundle["model"], profiles, monthly_budget=request.monthly_budget
     )
+
+    budget_metadata = _model_metadata["budget_optimizer_model"]
+    driver_directions = budget_metadata["driver_directions"]
+    importance = calculate_feature_importance(_budget_bundle["model"], feature_cols)
+    report = generate_business_report(scenarios, importance)
+    confidence = calculate_recommendation_confidence(scenarios, budget_metadata["cv_r2"])
+    analysis = generate_budget_business_analysis(scenarios, importance, by_campaign_count, driver_directions)
+    risks_opportunities = generate_budget_risks_and_opportunities(scenarios, importance, by_campaign_count)
+
+    # "Improvement" is normalized to profit-per-campaign so it's a fair
+    # comparison across the different campaign counts tested (raw total
+    # profit trivially rises with more campaigns summed together).
+    equal_scenario_profit = scenarios.iloc[0]["Predicted Profit"]
+    current_profit_per_campaign = equal_scenario_profit / n_campaigns if n_campaigns else 0.0
+    best_campaign_row = by_campaign_count.loc[by_campaign_count["predicted_profit"].idxmax()]
+    best_profit_per_campaign = best_campaign_row["predicted_profit"] / best_campaign_row["n_campaigns"]
+    improvement_pct = (
+        (best_profit_per_campaign - current_profit_per_campaign) / abs(current_profit_per_campaign) * 100
+        if current_profit_per_campaign
+        else 0.0
+    )
+    executive_summary = {
+        "recommended_strategy": f"{int(best_campaign_row['n_campaigns'])} campaigns",
+        "expected_profit": float(best_campaign_row["predicted_profit"]),
+        "estimated_improvement_pct": round(improvement_pct, 1),
+        "confidence_score": confidence["confidence_score"],
+    }
+
+    top_drivers = [
+        {
+            "feature": feature,
+            "importance": float(importance[feature]),
+            "business_impact": describe_driver_business_impact(feature, info["direction"], info["strength"]),
+        }
+        for feature, info in driver_directions.items()
+    ]
+    why = [
+        f"{'Lower' if info['direction'] == 'negative' else 'Higher'} {feature.replace('_', ' ')}"
+        for feature, info in list(driver_directions.items())[:3]
+    ]
+
     return {
         "n_campaigns": n_campaigns,
         "scenarios": scenarios.to_dict(orient="records"),
         "by_campaign_count": by_campaign_count.to_dict(orient="records"),
+        "executive_summary": executive_summary,
+        "analysis": analysis,
+        "recommendation": report["recommendation"],
+        "why": why,
+        "confidence": confidence["confidence"],
+        "confidence_score": confidence["confidence_score"],
+        "confidence_explanation": confidence["explanation"],
+        "top_drivers": top_drivers,
+        "risks": risks_opportunities["risks"],
+        "opportunities": risks_opportunities["opportunities"],
     }
 
 

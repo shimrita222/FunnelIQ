@@ -162,6 +162,28 @@
     }
     .badge-orange { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
     .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+    .badge-lg { font-size: 14px; padding: 6px 14px; }
+
+    /* "Why?" checklist */
+    .why-list { list-style: none; padding: 0; margin: 8px 0 0 0; }
+    .why-list li { padding: 4px 0; font-size: 14px; }
+    .why-list li::before { content: "✓ "; color: var(--accent-green); font-weight: 700; }
+
+    /* Top drivers */
+    .driver-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .driver-row:last-child { border-bottom: none; }
+    .driver-name { font-weight: 600; font-size: 14px; text-transform: capitalize; }
+    .driver-impact { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .driver-importance { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+
+    /* Data-driven vs. general insight lists */
+    .insight-item { padding: 8px 12px; border-left: 3px solid; margin-bottom: 8px; font-size: 14px; border-radius: 0 6px 6px 0; background: var(--surface-2); }
+    .insight-item.data-driven { border-left-color: var(--accent-blue); }
+    .insight-item.general { border-left-color: var(--text-dim); }
+    .insight-tag { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin-right: 6px; }
+    .insight-tag.data-driven { color: var(--accent-blue); }
+    .insight-tag.general { color: var(--text-dim); }
 
     /* Score progress bar */
     .progress-track {
@@ -341,6 +363,14 @@
     <div class="card">
       <h2>Budget Simulator</h2>
       <p class="subtitle">Compare allocation strategies for the monthly ad budget across real customer profiles.</p>
+
+      <div class="stat-row" id="budget-executive-summary" style="display: none;">
+        <div class="stat"><div class="label">Recommended Strategy</div><div class="value" id="exec-strategy">—</div></div>
+        <div class="stat"><div class="label">Expected Profit</div><div class="value" id="exec-profit">—</div></div>
+        <div class="stat"><div class="label">Est. Improvement</div><div class="value" id="exec-improvement">—</div></div>
+        <div class="stat"><div class="label">Confidence</div><div class="value" id="exec-confidence">—</div></div>
+      </div>
+
       <div class="slider-row">
         <input type="range" id="monthly_budget" min="10000" max="150000" step="1000" value="50000" />
         <div class="budget-readout" id="budget-readout">₪50,000</div>
@@ -350,6 +380,32 @@
       <canvas id="budget-chart" style="display: none;"></canvas>
       <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
+
+      <div id="budget-bi-sections" style="display: none;">
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis</h3>
+        <div class="callout">
+          <p><strong>Business Insight</strong><br /><span id="bi-insight"></span></p>
+          <p><strong>Key Observation</strong><br /><span id="bi-observation"></span></p>
+          <p style="margin-bottom: 0;"><strong>Business Impact</strong><br /><span id="bi-impact"></span></p>
+        </div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation</h3>
+        <div class="callout" id="bi-recommendation"></div>
+        <ul class="why-list" id="bi-why"></ul>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Confidence</h3>
+        <div id="bi-confidence-badge"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Top Profit Drivers</h3>
+        <div id="bi-top-drivers"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Risks</h3>
+        <div id="bi-risks"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Opportunities</h3>
+        <div id="bi-opportunities"></div>
+      </div>
+
       <p class="error" id="budget-error"></p>
     </div>
   </div>
@@ -607,11 +663,101 @@
           ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
         );
 
+        renderBudgetIntelligence(result);
+
         return result;
       } catch (err) {
         errorEl.textContent = `Error: ${err.message}`;
         return null;
       }
+    }
+
+    function renderBudgetIntelligence(result) {
+      const exec = result.executive_summary;
+      document.getElementById("budget-executive-summary").style.display = "grid";
+      document.getElementById("exec-strategy").textContent = exec.recommended_strategy;
+      document.getElementById("exec-profit").textContent = fmtMoney(exec.expected_profit);
+      document.getElementById("exec-improvement").textContent =
+        (exec.estimated_improvement_pct >= 0 ? "+" : "") + exec.estimated_improvement_pct.toFixed(1) + "%";
+      document.getElementById("exec-confidence").textContent = (exec.confidence_score * 100).toFixed(0) + "%";
+
+      document.getElementById("budget-bi-sections").style.display = "block";
+
+      document.getElementById("bi-insight").textContent = result.analysis.business_insight;
+      document.getElementById("bi-observation").textContent = result.analysis.key_observation;
+      document.getElementById("bi-impact").textContent = result.analysis.business_impact;
+
+      document.getElementById("bi-recommendation").textContent = result.recommendation;
+
+      const whyEl = document.getElementById("bi-why");
+      whyEl.innerHTML = "";
+      result.why.forEach((reason) => {
+        const li = document.createElement("li");
+        li.textContent = reason;
+        whyEl.appendChild(li);
+      });
+
+      const confidenceClass =
+        result.confidence === "High" ? "badge-green" : result.confidence === "Medium" ? "badge-orange" : "badge-red";
+      const confidenceBadge = document.getElementById("bi-confidence-badge");
+      confidenceBadge.innerHTML = "";
+      const badgeSpan = document.createElement("span");
+      badgeSpan.className = `badge ${confidenceClass} badge-lg`;
+      badgeSpan.textContent = `${result.confidence} (${(result.confidence_score * 100).toFixed(0)}%)`;
+      const explanationP = document.createElement("p");
+      explanationP.style.cssText = "color: var(--text-dim); font-size: 13px; margin-top: 10px;";
+      explanationP.textContent = result.confidence_explanation;
+      confidenceBadge.appendChild(badgeSpan);
+      confidenceBadge.appendChild(explanationP);
+
+      const driversEl = document.getElementById("bi-top-drivers");
+      driversEl.innerHTML = "";
+      result.top_drivers.forEach((driver) => {
+        const row = document.createElement("div");
+        row.className = "driver-row";
+        const info = document.createElement("div");
+        const name = document.createElement("div");
+        name.className = "driver-name";
+        name.textContent = driver.feature.replace(/_/g, " ");
+        const impact = document.createElement("div");
+        impact.className = "driver-impact";
+        impact.textContent = driver.business_impact;
+        info.appendChild(name);
+        info.appendChild(impact);
+        const importanceEl = document.createElement("div");
+        importanceEl.className = "driver-importance";
+        importanceEl.textContent = `Importance: ${driver.importance.toFixed(1)}`;
+        row.appendChild(info);
+        row.appendChild(importanceEl);
+        driversEl.appendChild(row);
+      });
+
+      function renderInsightList(containerId, group) {
+        const el = document.getElementById(containerId);
+        el.innerHTML = "";
+        for (const text of group.data_driven) {
+          const div = document.createElement("div");
+          div.className = "insight-item data-driven";
+          const tag = document.createElement("span");
+          tag.className = "insight-tag data-driven";
+          tag.textContent = "Data-Driven";
+          div.appendChild(tag);
+          div.appendChild(document.createTextNode(text));
+          el.appendChild(div);
+        }
+        for (const text of group.general) {
+          const div = document.createElement("div");
+          div.className = "insight-item general";
+          const tag = document.createElement("span");
+          tag.className = "insight-tag general";
+          tag.textContent = "General";
+          div.appendChild(tag);
+          div.appendChild(document.createTextNode(text));
+          el.appendChild(div);
+        }
+      }
+      renderInsightList("bi-risks", result.risks);
+      renderInsightList("bi-opportunities", result.opportunities);
     }
 
     document.getElementById("run-budget-optimization").addEventListener("click", runBudgetOptimization);

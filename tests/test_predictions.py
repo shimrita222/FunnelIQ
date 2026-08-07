@@ -115,6 +115,32 @@ def test_budget_optimization():
     # size (25, 50) are skipped — only 1/5/10 remain.
     assert {s["n_campaigns"] for s in body["by_campaign_count"]} == {1, 5, 10}
 
+    exec_summary = body["executive_summary"]
+    assert exec_summary["recommended_strategy"]
+    assert isinstance(exec_summary["expected_profit"], float)
+    assert 0.0 <= exec_summary["confidence_score"] <= 1.0
+
+    assert set(body["analysis"].keys()) == {"business_insight", "key_observation", "business_impact"}
+    assert all(body["analysis"].values())
+
+    assert body["recommendation"]
+    assert len(body["why"]) > 0
+
+    assert body["confidence"] in {"High", "Medium", "Low"}
+    assert 0.0 <= body["confidence_score"] <= 1.0
+    assert body["confidence_explanation"]
+
+    assert len(body["top_drivers"]) > 0
+    for driver in body["top_drivers"]:
+        assert driver["feature"]
+        assert isinstance(driver["importance"], float)
+        assert driver["business_impact"]
+
+    for group in (body["risks"], body["opportunities"]):
+        assert "data_driven" in group
+        assert "general" in group
+        assert len(group["general"]) > 0
+
 
 def test_followup_analysis():
     response = client.get("/followup-analysis")
