@@ -7,6 +7,56 @@ gitignored and never deployed).
 """
 
 import pandas as pd
+from sklearn.base import RegressorMixin
+
+
+def calculate_feature_importance(model: RegressorMixin, feature_names: list[str]) -> pd.Series:
+    """Read-only accessor: importances off an already-fitted model, sorted descending."""
+    if hasattr(model, "get_feature_importance"):  # CatBoost
+        importances = model.get_feature_importance()
+    else:  # XGBoost / LightGBM
+        importances = model.feature_importances_
+    return pd.Series(importances, index=feature_names).sort_values(ascending=False)
+
+
+def generate_business_report(comparison_df: pd.DataFrame, importance: pd.Series) -> dict:
+    """Answer the brief's business questions from the actual computed results."""
+    best_scenario = comparison_df.loc[comparison_df["Predicted Profit"].idxmax()]
+    equal_row = comparison_df.iloc[0]
+    increase_row = comparison_df.iloc[1]
+    decrease_row = comparison_df.iloc[2]
+
+    equal_is_optimal = best_scenario["Scenario"] == equal_row["Scenario"]
+    more_budget_helps = increase_row["Predicted Profit"] > equal_row["Predicted Profit"]
+    less_budget_hurts = decrease_row["Predicted Profit"] < equal_row["Predicted Profit"]
+    top_feature = importance.index[0]
+
+    answers = {
+        "is_equal_allocation_optimal": equal_is_optimal,
+        "best_scenario": best_scenario["Scenario"],
+        "does_more_budget_always_help": more_budget_helps and less_budget_hurts,
+        "top_profit_driver": top_feature,
+    }
+
+    recommendation = (
+        f"Best-performing scenario: '{best_scenario['Scenario']}' "
+        f"(predicted profit NIS {best_scenario['Predicted Profit']:,.0f}, "
+        f"{best_scenario['Profit Difference']:+,.0f} vs. the current equal-allocation "
+        f"strategy). Equal allocation is "
+        + ("" if equal_is_optimal else "NOT ")
+        + "the optimal strategy among those tested. "
+        + (
+            "More total budget does increase predicted profit, and less budget "
+            "reduces it, consistent with a straightforward spend-response "
+            "relationship in this range."
+            if answers["does_more_budget_always_help"]
+            else "Predicted profit does not scale simply with total budget size — "
+            "check the scenario table for where the relationship breaks down."
+        )
+        + f" The strongest driver of predicted profit is '{top_feature}'."
+    )
+
+    return {"answers": answers, "recommendation": recommendation}
 
 
 def simulate_budget_scenarios(
@@ -62,8 +112,8 @@ def simulate_budget_scenarios(
     )
     scenarios["Average Budget"] = scenarios["Total Budget"] / n
     scenarios["Profit Difference"] = scenarios["Predicted Profit"] - scenario_1_profit
-    scenarios["ROI"] = (scenarios["Predicted Profit"] - scenarios["Total Budget"]) / scenarios["Total Budget"]
-    return scenarios[["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"]]
+    scenarios["Predicted ROI"] = (scenarios["Predicted Profit"] - scenarios["Total Budget"]) / scenarios["Total Budget"]
+    return scenarios[["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "Predicted ROI"]]
 
 
 def simulate_by_campaign_count(
@@ -89,3 +139,309 @@ def simulate_by_campaign_count(
         predicted_profit = model.predict(sample).sum()
         rows.append({"n_campaigns": n, "predicted_profit": predicted_profit})
     return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Business-intelligence layer: recommendation confidence, driver categorization
+# and business-impact text, narrative analysis, and risks/opportunities.
+# All of this reads only from already-computed scenario/sweep tables and the
+# model's exported metadata (models/metadata.json) - no live Supabase calls,
+# no retraining, no correlation computed against raw data at request time.
+# ---------------------------------------------------------------------------
+
+LEAD_VOLUME_FEATURES = {"num_leads", "leads_answered", "leads_not_answered"}
+FUNNEL_EXECUTION_FEATURES = {
+    "followup_1", "followup_2", "followup_3", "followup_4", "followup_5",
+    "calls_to_closed", "calls_to_not_closed", "closed", "not_closed", "purchased",
+}
+COST_FEATURES = {"ad_budget", "customer_acquisition_cost"}
+
+CATEGORY_ACTION = {
+    "lead volume": "growing qualified lead volume",
+    "funnel execution": "improving follow-up execution and conversion efficiency",
+    "acquisition cost & spend": "reducing acquisition cost",
+}
+
+# Imperative, checklist-style phrasing for the "why" bullets under the
+# Recommendation - deliberately at the category level, not a literal
+# restatement of a single feature's PDP direction (e.g. "Lower leads
+# answered"), which can read as a backwards operational instruction due to
+# correlated features being held fixed in the two-point PDP check.
+CATEGORY_ACTION_PHRASES = {
+    "lead volume": "Improve lead quality and qualification",
+    "funnel execution": "Improve follow-up efficiency",
+    "acquisition cost & spend": "Reduce customer acquisition cost",
+}
+
+STRENGTH_ADVERB = {"strong": "strongly", "medium": "moderately", "weak": "weakly"}
+
+
+def categorize_budget_driver(feature_name: str) -> str:
+    """Map a raw feature name to a plain-language business category."""
+    if feature_name in LEAD_VOLUME_FEATURES:
+        return "lead volume"
+    if feature_name in FUNNEL_EXECUTION_FEATURES:
+        return "funnel execution"
+    if feature_name in COST_FEATURES:
+        return "acquisition cost & spend"
+    return "other"
+
+
+def describe_driver_business_impact(feature_name: str, direction: str, strength: str) -> str:
+    """Turn a metadata driver_directions entry into a plain business sentence.
+
+    Pure string formatting - direction/strength already came from the
+    model's own two-point partial dependence (see scripts/export_models.py),
+    not recomputed here.
+    """
+    display = feature_name.replace("_", " ")
+    adverb = STRENGTH_ADVERB.get(strength, "")
+    verb = "Lower" if direction == "negative" else "Higher"
+    return f"{verb} {display} is {adverb} associated with higher predicted profit.".replace("  ", " ")
+
+
+def calculate_model_reliability(model_cv_r2: float) -> dict:
+    """Reliability of the trained model itself - CV R2 only, no scenario data.
+
+    Deliberately separate from calculate_recommendation_strength: model fit
+    quality and "how much better is this specific recommendation" are two
+    different questions and must not be blended into one score.
+    """
+    level = "High" if model_cv_r2 >= 0.7 else "Medium" if model_cv_r2 >= 0.4 else "Low"
+    explanation = (
+        f"The model explains approximately {model_cv_r2 * 100:.0f}% of the variance in "
+        f"historical profit during 5-fold cross-validation (R² ≈ {model_cv_r2:.2f}). "
+        "Predictions are expected to be reliable for campaigns similar to those seen "
+        "during model training; results may be less dependable for budgets or profiles "
+        "well outside that historical range. This score reflects historical validation "
+        "performance and should not be interpreted as a guarantee of future outcomes."
+    )
+    return {"level": level, "score": model_cv_r2, "metric": "CV R²", "explanation": explanation}
+
+
+def calculate_recommendation_strength(scenarios: pd.DataFrame) -> dict:
+    """How decisively the best scenario beats the next-best - no model-quality data."""
+    sorted_df = scenarios.sort_values("Predicted Profit", ascending=False)
+    best_row, second_row = sorted_df.iloc[0], sorted_df.iloc[1]
+    best, second_best = best_row["Predicted Profit"], second_row["Predicted Profit"]
+    advantage_pct = round((best - second_best) / abs(best) * 100, 1) if best else 0.0
+    level = "Strong" if advantage_pct >= 10.0 else "Moderate" if advantage_pct >= 2.0 else "Marginal"
+
+    # Lead with the mechanism (what was compared), then the implication -
+    # "why this rating" before "what it means", not the other way around.
+    mechanism = {
+        "Strong": (
+            f"The recommended allocation ('{best_row['Scenario']}') predicts meaningfully higher "
+            f"profit than the next-best alternative tested ('{second_row['Scenario']}')."
+        ),
+        "Moderate": (
+            f"The recommended allocation ('{best_row['Scenario']}') performs somewhat better than "
+            f"the next-best alternative tested ('{second_row['Scenario']}')."
+        ),
+        "Marginal": (
+            f"The recommended allocation ('{best_row['Scenario']}') performs almost identically to "
+            f"the second-best scenario tested ('{second_row['Scenario']}')."
+        ),
+    }[level]
+    implication = {
+        "Strong": "The recommended allocation clearly outperforms the alternatives tested.",
+        "Moderate": "The recommended strategy is preferred, but a competing allocation is expected to perform closely.",
+        "Marginal": (
+            "This indicates several allocation strategies are expected to generate similar profit - "
+            "the choice among them makes little practical difference."
+        ),
+    }[level]
+    explanation = f"{mechanism} {implication}"
+
+    # Short, standalone business-meaning sentence for display next to the
+    # badge - distinct from `explanation` (which pairs mechanism + implication
+    # for the "Why this rating?" detail section below it).
+    business_meaning = {
+        "Strong": (
+            "The recommended allocation clearly outperforms the alternatives tested - switching to a "
+            "different strategy would meaningfully reduce expected profit."
+        ),
+        "Moderate": (
+            "The recommended strategy is preferred, but a competing allocation is expected to perform "
+            "closely - the business impact of switching is moderate."
+        ),
+        "Marginal": (
+            "Several allocation strategies are expected to produce nearly identical profit. The "
+            "recommended strategy is preferred, but the business impact of choosing another tested "
+            "strategy is minimal."
+        ),
+    }[level]
+
+    # Name any *further* scenarios (beyond the second-best already named
+    # above) within 2% of the best predicted profit.
+    within_2pct = abs(best) * 0.02
+    remaining = sorted_df.iloc[2:]
+    close = remaining[(best - remaining["Predicted Profit"]) <= within_2pct]["Scenario"].tolist()
+    if close:
+        names = ", ".join(f"'{s}'" for s in close)
+        verb = "is" if len(close) == 1 else "are"
+        explanation += f" {names} {verb} also within 2% of the best predicted profit."
+
+    return {
+        "level": level,
+        "advantage_pct": advantage_pct,
+        "explanation": explanation,
+        "business_meaning": business_meaning,
+    }
+
+
+def calculate_recommendation_strength_by_campaign_count(by_campaign_count: pd.DataFrame) -> dict:
+    """Same decisiveness metric as calculate_recommendation_strength, but comparing
+    campaign-count options against each other - the comparison the Executive
+    Summary's "Recommended Strategy" and this Strength badge actually refer to -
+    instead of total-budget-size scenarios at a fixed campaign count."""
+    renamed = by_campaign_count.rename(columns={"n_campaigns": "Scenario", "predicted_profit": "Predicted Profit"}).copy()
+    renamed["Scenario"] = renamed["Scenario"].apply(lambda n: f"{int(n)} campaigns")
+    return calculate_recommendation_strength(renamed)
+
+
+def generate_budget_key_takeaway(by_campaign_count: pd.DataFrame, recommendation_strength: dict) -> str:
+    """One sentence for display directly under the chart - reuses the
+    already-computed recommended campaign count/profit and the
+    recommendation-strength level, no new judgment logic."""
+    best_row = by_campaign_count.loc[by_campaign_count["predicted_profit"].idxmax()]
+    n = int(best_row["n_campaigns"])
+    profit = best_row["predicted_profit"]
+
+    if recommendation_strength["level"] == "Marginal":
+        return (
+            f"Although {n} campaigns generated the highest predicted profit (NIS {profit:,.0f}), the "
+            "advantage over the current allocation is negligible. This suggests budget allocation is "
+            "not the primary driver of profitability in this dataset."
+        )
+    if recommendation_strength["level"] == "Moderate":
+        return (
+            f"Spreading the budget across {n} campaigns is predicted to modestly outperform the current "
+            f"allocation, with total predicted profit of NIS {profit:,.0f}."
+        )
+    return (
+        f"Spreading the budget across {n} campaigns is predicted to clearly outperform the current "
+        f"allocation, with total predicted profit of NIS {profit:,.0f}."
+    )
+
+
+def generate_budget_business_analysis(
+    scenarios: pd.DataFrame,
+    importance: pd.Series,
+    by_campaign_count: pd.DataFrame,
+    driver_directions: dict,
+) -> dict:
+    """3-part narrative: Business Insight / Key Observation / Business Impact."""
+    top_feature = importance.index[0]
+    top_category = categorize_budget_driver(top_feature)
+    n_features = len(importance)
+    ad_budget_rank = list(importance.index).index("ad_budget") + 1 if "ad_budget" in importance.index else None
+
+    if ad_budget_rank is not None and top_feature != "ad_budget" and ad_budget_rank > n_features / 2:
+        business_insight = (
+            f"Historical data indicates that {top_category} has more influence on predicted profit "
+            f"than the size of the ad budget itself (ad budget ranks {ad_budget_rank} of {n_features} "
+            "features the model considered)."
+        )
+    else:
+        business_insight = (
+            f"Historical data indicates that {top_category} is the strongest measurable influence "
+            "on predicted profit among the features the model considered."
+        )
+
+    bcc = by_campaign_count.copy()
+    bcc["profit_per_campaign"] = bcc["predicted_profit"] / bcc["n_campaigns"]
+    bcc_sorted = bcc.sort_values("n_campaigns")
+    if len(bcc_sorted) >= 2 and bcc_sorted.iloc[-1]["profit_per_campaign"] < bcc_sorted.iloc[0]["profit_per_campaign"]:
+        campaign_trend = (
+            "profit per campaign declines as more campaigns are added in the range tested, "
+            "a sign of diminishing returns at higher campaign counts"
+        )
+    else:
+        campaign_trend = (
+            "profit per campaign holds up as more campaigns are added in the range tested, "
+            "with no strong sign of diminishing returns"
+        )
+    if top_feature in driver_directions:
+        d = driver_directions[top_feature]
+        direction_phrase = "decreases" if d["direction"] == "negative" else "increases"
+        key_observation = (
+            f"The model's predicted profit generally {direction_phrase} as {top_feature.replace('_', ' ')} "
+            f"rises, holding other factors fixed; separately, {campaign_trend}."
+        )
+    else:
+        key_observation = campaign_trend.capitalize() + "."
+
+    business_impact = (
+        f"Focusing on {CATEGORY_ACTION.get(top_category, top_category)} is likely to have more effect "
+        "on expected profit than adjusting the ad budget size alone."
+    )
+
+    return {
+        "business_insight": business_insight,
+        "key_observation": key_observation,
+        "business_impact": business_impact,
+    }
+
+
+def generate_budget_risks_and_opportunities(
+    scenarios: pd.DataFrame,
+    importance: pd.Series,
+    by_campaign_count: pd.DataFrame,
+) -> dict:
+    """Risks/opportunities split into data-driven (verified against real
+    computed signals) and general (labeled guidance, never presented as a
+    model finding)."""
+    risks_data_driven: list[str] = []
+    opportunities_data_driven: list[str] = []
+
+    bcc = by_campaign_count.copy()
+    bcc["profit_per_campaign"] = bcc["predicted_profit"] / bcc["n_campaigns"]
+    bcc_sorted = bcc.sort_values("n_campaigns")
+    if len(bcc_sorted) >= 2 and bcc_sorted.iloc[-1]["profit_per_campaign"] < bcc_sorted.iloc[0]["profit_per_campaign"]:
+        first, last = bcc_sorted.iloc[0], bcc_sorted.iloc[-1]
+        risks_data_driven.append(
+            f"Diminishing returns at higher campaign counts: predicted profit per campaign falls from "
+            f"NIS {first['profit_per_campaign']:,.0f} at {int(first['n_campaigns'])} campaigns to "
+            f"NIS {last['profit_per_campaign']:,.0f} at {int(last['n_campaigns'])} campaigns."
+        )
+
+    n_features = len(importance)
+    ad_budget_rank = list(importance.index).index("ad_budget") + 1 if "ad_budget" in importance.index else None
+    if ad_budget_rank is not None and ad_budget_rank > n_features / 2:
+        risks_data_driven.append(
+            f"Ad budget ranks {ad_budget_rank} of {n_features} features in predictive importance - "
+            "assuming higher spend alone will drive higher profit is not well supported by the model."
+        )
+        opportunities_data_driven.append(
+            "Since ad spend has limited predictive leverage here, reallocating effort toward the "
+            "higher-ranked operational drivers below is likely to be more effective than increasing budget."
+        )
+
+    top_feature = importance.index[0]
+    top_category = categorize_budget_driver(top_feature)
+    category_opportunity = {
+        "lead volume": "Increasing qualified lead volume appears to be a high-leverage opportunity for profit growth.",
+        "funnel execution": "Improving follow-up execution and conversion efficiency appears to be a high-leverage opportunity for profit growth.",
+        "acquisition cost & spend": "Reducing acquisition cost appears to be a high-leverage opportunity for profit growth.",
+    }
+    driver_opportunity = category_opportunity.get(
+        top_category, f"Optimizing {top_category} appears to be a high-leverage opportunity for profit growth."
+    )
+    if driver_opportunity not in opportunities_data_driven:
+        opportunities_data_driven.append(driver_opportunity)
+
+    general_risks = [
+        (
+            "This simulation reflects the historical data range - results may not hold for budgets or "
+            "market conditions well outside it."
+        ),
+    ]
+    general_opportunities = [
+        "Validate any real allocation change with a controlled pilot before a full rollout.",
+    ]
+
+    return {
+        "risks": {"data_driven": risks_data_driven, "general": general_risks},
+        "opportunities": {"data_driven": opportunities_data_driven, "general": general_opportunities},
+    }

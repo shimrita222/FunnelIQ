@@ -162,6 +162,34 @@
     }
     .badge-orange { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
     .badge-green { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+    .badge-red { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+    .stat-value-green { color: var(--accent-green); }
+    .stat-value-orange { color: var(--accent-orange); }
+    .stat-value-red { color: var(--accent-red); }
+    .badge-lg { font-size: 14px; padding: 6px 14px; }
+
+    /* "Why?" checklist */
+    .why-list { list-style: none; padding: 0; margin: 8px 0 0 0; }
+    .why-list li { padding: 4px 0; font-size: 14px; }
+    .why-list li::before { content: "✓ "; color: var(--accent-green); font-weight: 700; }
+
+    /* Top drivers */
+    .driver-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .driver-row:last-child { border-bottom: none; }
+    .driver-row-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+    .driver-name { font-weight: 600; font-size: 14px; text-transform: capitalize; }
+    .driver-pct { font-size: 13px; font-weight: 700; color: var(--accent-blue); white-space: nowrap; }
+    .driver-impact { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+    .driver-row .progress-track { margin-top: 8px; }
+    .driver-row .progress-fill { background: var(--accent-blue); }
+
+    /* Data-driven vs. general insight lists */
+    .insight-item { padding: 8px 12px; border-left: 3px solid; margin-bottom: 8px; font-size: 14px; border-radius: 0 6px 6px 0; background: var(--surface-2); }
+    .insight-item.data-driven { border-left-color: var(--accent-blue); }
+    .insight-item.general { border-left-color: var(--text-dim); }
+    .insight-tag { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin-right: 6px; }
+    .insight-tag.data-driven { color: var(--accent-blue); }
+    .insight-tag.general { color: var(--text-dim); }
 
     /* Score progress bar */
     .progress-track {
@@ -184,6 +212,12 @@
     th, td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; }
     th:first-child, td:first-child { text-align: left; }
     th { color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 11px; }
+    tr.row-recommended td { background: rgba(34, 197, 94, 0.08); }
+    tr.row-recommended td:first-child { font-weight: 600; }
+    .row-recommended-tag { display: inline-block; margin-left: 8px; color: var(--accent-green); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    tr.row-warning td { background: rgba(239, 68, 68, 0.08); }
+    tr.row-warning td:first-child { font-weight: 600; }
+    .row-warning-tag { display: inline-block; margin-left: 8px; color: var(--accent-red); font-size: 11px; font-weight: 700; white-space: nowrap; }
 
     .toggle-link { background: none; border: none; color: var(--accent-blue); cursor: pointer; font-size: 13px; padding: 0; }
 
@@ -296,17 +330,21 @@
           <div class="label">Predicted Lifetime</div>
           <div class="value" id="result-lifetime">—</div>
           <div class="sub">months</div>
+          <p id="result-lifetime-meaning" style="color: var(--text-dim); font-size: 13px; margin-top: 8px;"></p>
         </div>
         <div class="result-card">
           <div class="label">Upsell Probability</div>
           <div class="value" id="result-upsell">—</div>
           <div id="result-upsell-badge"></div>
+          <p id="result-upsell-meaning" style="color: var(--text-dim); font-size: 13px; margin-top: 8px;"></p>
         </div>
         <div class="result-card">
           <div class="label">Super Customer Score</div>
+          <div style="color: var(--text-dim); font-size: 11px; margin-top: 2px;">Likelihood to refer others</div>
           <div class="value" id="result-gauge-value">—</div>
           <div class="progress-track"><div class="progress-fill" id="result-gauge-fill" style="width: 0%;"></div></div>
           <div class="sub" id="result-tier"></div>
+          <p id="result-tier-meaning" style="color: var(--text-dim); font-size: 13px; margin-top: 8px;"></p>
         </div>
       </div>
       <p class="error" id="prediction-error"></p>
@@ -314,16 +352,19 @@
 
     <div class="card">
       <h2>The Follow-up Paradox</h2>
-      <p class="subtitle">Stage-by-stage dropout across the funnel — is the sales manager right that follow-ups past the 3rd call are wasted?</p>
+      <p class="subtitle">Stage-by-stage dropout across the funnel</p>
       <div class="stat-row" id="followup-stats">
         <div class="stat"><div class="label">Customers (live)</div><div class="value skeleton skeleton-line" id="stat-customers"></div></div>
         <div class="stat"><div class="label">Avg calls to close</div><div class="value skeleton skeleton-line" id="stat-calls-closed"></div></div>
         <div class="stat"><div class="label">Avg calls (not closed)</div><div class="value skeleton skeleton-line" id="stat-calls-not-closed"></div></div>
       </div>
       <div class="followup-grid">
-        <div class="chart-container" id="followup-chart-container">
-          <div class="skeleton skeleton-block" id="followup-chart-skeleton" style="height: 100%;"></div>
-          <canvas id="followup-chart" style="display: none;"></canvas>
+        <div>
+          <div class="chart-container" id="followup-chart-container">
+            <div class="skeleton skeleton-block" id="followup-chart-skeleton" style="height: 100%;"></div>
+            <canvas id="followup-chart" style="display: none;"></canvas>
+          </div>
+          <p style="color: var(--text-dim); font-size: 12px; margin-top: 6px;">Red bars mark drop-off past the 3rd call — the range in question when weighing whether late follow-ups are worth the effort.</p>
         </div>
         <div>
           <h3 class="mini-heading">Dropout by Stage</h3>
@@ -332,6 +373,7 @@
           <h3 class="mini-heading" style="margin-top: 20px;">Conversion by Budget Tier</h3>
           <div class="skeleton skeleton-line" id="budget-tier-table-skeleton" style="height: 100px;"></div>
           <div id="budget-tier-table-container"></div>
+          <p style="color: var(--text-dim); font-size: 12px; margin-top: 6px;">"Gap" covers budgets between ₪1,500–2,000, which fall outside the Low/Mid tier definitions — shown separately for transparency rather than folded into a neighboring tier.</p>
         </div>
       </div>
       <div class="callout" id="followup-callout" style="display: none;"></div>
@@ -341,6 +383,18 @@
     <div class="card">
       <h2>Budget Simulator</h2>
       <p class="subtitle">Compare allocation strategies for the monthly ad budget across real customer profiles.</p>
+
+      <div class="stat-row" id="budget-executive-summary" style="display: none;">
+        <div class="stat"><div class="label">Recommended Strategy</div><div class="value" id="exec-strategy">—</div></div>
+        <div class="stat"><div class="label">Expected Profit</div><div class="value" id="exec-profit">—</div></div>
+        <div class="stat"><div class="label">Est. Improvement</div><div class="value" id="exec-improvement">—</div></div>
+        <div class="stat"><div class="label">Recommendation Strength</div><div class="value" id="exec-strength">—</div></div>
+      </div>
+      <div class="callout" id="exec-takeaway" style="display: none; margin: 0 0 20px 0;">
+        <strong>Executive Takeaway</strong><br />
+        <span id="exec-takeaway-text"></span>
+      </div>
+
       <div class="slider-row">
         <input type="range" id="monthly_budget" min="10000" max="150000" step="1000" value="50000" />
         <div class="budget-readout" id="budget-readout">₪50,000</div>
@@ -348,8 +402,40 @@
       <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
+      <h3 class="mini-heading" id="budget-takeaway-heading" style="display: none; margin-top: 16px;">Key Takeaway</h3>
+      <div class="callout" id="budget-key-takeaway" style="display: none;"></div>
       <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
+
+      <div id="budget-bi-sections" style="display: none;">
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis</h3>
+        <div class="callout">
+          <p><strong>Key Business Insight</strong><br /><span id="bi-insight"></span></p>
+          <p><strong>Observed Pattern</strong><br /><span id="bi-observation"></span></p>
+          <p style="margin-bottom: 0;"><strong>Business Implication</strong><br /><span id="bi-impact"></span></p>
+        </div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">💡 Recommendation</h3>
+        <div class="callout" id="bi-recommendation"></div>
+        <ul class="why-list" id="bi-why"></ul>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Model Reliability</h3>
+        <div id="bi-model-reliability"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation Strength</h3>
+        <div id="bi-recommendation-strength"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Top Profit Drivers</h3>
+        <p id="bi-top-drivers-note" style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;"></p>
+        <div id="bi-top-drivers"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Risks</h3>
+        <div id="bi-risks"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Opportunities</h3>
+        <div id="bi-opportunities"></div>
+      </div>
+
       <p class="error" id="budget-error"></p>
     </div>
   </div>
@@ -403,7 +489,7 @@
       return "₪" + Math.round(n).toLocaleString();
     }
 
-    function renderTable(container, rows, columns) {
+    function renderTable(container, rows, columns, options = {}) {
       container.innerHTML = "";
       const table = document.createElement("table");
       const thead = table.insertRow();
@@ -414,18 +500,37 @@
       }
       for (const row of rows) {
         const tr = table.insertRow();
-        for (const col of columns) {
+        const isRecommended = options.isRecommended ? options.isRecommended(row) : false;
+        const isWarning = options.isWarning ? options.isWarning(row) : false;
+        if (isRecommended) tr.classList.add("row-recommended");
+        if (isWarning) tr.classList.add("row-warning");
+        columns.forEach((col, i) => {
           const td = tr.insertCell();
           const value = row[col];
-          td.textContent = value === null || value === undefined
+          const text = value === null || value === undefined
             ? "—"
             : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value);
-        }
+          td.textContent = text;
+          if (i === 0 && isRecommended) {
+            const tag = document.createElement("span");
+            tag.className = "row-recommended-tag";
+            tag.textContent = options.recommendedTag || "✓ Recommended";
+            td.appendChild(tag);
+          }
+          if (i === 0 && isWarning) {
+            const tag = document.createElement("span");
+            tag.className = "row-warning-tag";
+            tag.textContent = "⚠ Highest Drop-off";
+            td.appendChild(tag);
+          }
+        });
       }
       container.appendChild(table);
     }
 
     // ---------- Customer Predictor ----------
+    let avgLtvMonths = null;
+
     document.getElementById("predict-btn").addEventListener("click", async () => {
       const btn = document.getElementById("predict-btn");
       const errorEl = document.getElementById("prediction-error");
@@ -441,6 +546,15 @@
         ]);
 
         document.getElementById("result-lifetime").textContent = lifetime.predicted_ltv_months.toFixed(1);
+        const lifetimeMeaningEl = document.getElementById("result-lifetime-meaning");
+        if (avgLtvMonths) {
+          const diffPct = ((lifetime.predicted_ltv_months - avgLtvMonths) / avgLtvMonths) * 100;
+          lifetimeMeaningEl.textContent = diffPct >= 0
+            ? `${diffPct.toFixed(0)}% above the average customer (${avgLtvMonths.toFixed(1)} mo) — a high-retention profile.`
+            : `${Math.abs(diffPct).toFixed(0)}% below the average customer (${avgLtvMonths.toFixed(1)} mo) — consider a retention touchpoint.`;
+        } else {
+          lifetimeMeaningEl.textContent = "Estimated months this customer is expected to stay active.";
+        }
 
         const upsellPct = (upsell.upsell_probability * 100).toFixed(1);
         document.getElementById("result-upsell").textContent = upsellPct + "%";
@@ -448,6 +562,9 @@
         badgeEl.innerHTML = upsell.predicted_upsell
           ? '<span class="badge badge-orange">Flag for outreach</span>'
           : '<span class="badge badge-green">Low priority</span>';
+        document.getElementById("result-upsell-meaning").textContent = upsell.predicted_upsell
+          ? "Above the model's upsell threshold — prioritize this customer for upsell outreach."
+          : "Below the model's upsell threshold — deprioritize active upsell outreach for now.";
 
         const tier = superCustomer.tier;
         const color = TIER_HEX[tier] || "#3b82f6";
@@ -456,6 +573,12 @@
         fill.style.background = color;
         document.getElementById("result-gauge-value").textContent = superCustomer.score;
         document.getElementById("result-tier").textContent = tier + " tier";
+        const tierMeaning = {
+          High: "Top-tier customer profile — a strong candidate for VIP treatment, loyalty programs, or referral requests.",
+          Medium: "Solid customer profile — standard nurture and retention efforts are appropriate.",
+          Low: "Lower engagement/value profile — monitor for churn risk and consider extra engagement effort.",
+        };
+        document.getElementById("result-tier-meaning").textContent = tierMeaning[tier] || "";
 
         resultsEl.style.display = "grid";
       } catch (err) {
@@ -483,41 +606,103 @@
 
         const stages = result.dropout_by_stage.map((r) => r.Stage);
         const remaining = result.dropout_by_stage.map((r) => r["Remaining Leads"]);
+        const dropRates = result.dropout_by_stage.map((r) => r["Drop Rate (%)"]);
+        // Stage index 3 is "Follow-up 3" - everything at or before it is within
+        // the sales manager's proposed cutoff, everything after is the range in
+        // question, so bars past that point are colored to stand out.
+        const thirdCallIndex = stages.indexOf("Follow-up 3");
+        const dropRateColors = dropRates.map((_, i) =>
+          i > thirdCallIndex ? "rgba(239, 68, 68, 0.65)" : "rgba(59, 130, 246, 0.35)"
+        );
+
+        // Marks the boundary after Follow-up 3 so it's visually obvious
+        // whether the drop-rate bars past it are still substantial (still
+        // being worked) or fall off to ~0 (would support "wasted effort").
+        const pastThirdCallPlugin = {
+          id: "pastThirdCall",
+          beforeDraw(chart) {
+            const xScale = chart.scales.x;
+            if (thirdCallIndex < 0 || !xScale.getPixelForTick) return;
+            const xPos = (xScale.getPixelForTick(thirdCallIndex) + xScale.getPixelForTick(thirdCallIndex + 1)) / 2;
+            const { ctx, chartArea } = chart;
+            ctx.save();
+            ctx.strokeStyle = "rgba(248, 113, 113, 0.85)";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(xPos, chartArea.top);
+            ctx.lineTo(xPos, chartArea.bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#8b92a5";
+            ctx.font = "11px -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText("Past 3rd call →", xPos + 6, chartArea.top + 14);
+            ctx.restore();
+          },
+        };
 
         document.getElementById("followup-chart-skeleton").style.display = "none";
         const canvas = document.getElementById("followup-chart");
         canvas.style.display = "block";
         if (followupChart) followupChart.destroy();
         followupChart = new Chart(canvas, {
-          type: "line",
           data: {
             labels: stages,
-            datasets: [{
-              label: "Remaining Leads",
-              data: remaining,
-              fill: true,
-              borderColor: "#3b82f6",
-              backgroundColor: "rgba(59, 130, 246, 0.15)",
-              tension: 0.3,
-              pointBackgroundColor: "#3b82f6",
-            }],
+            datasets: [
+              {
+                type: "line",
+                label: "Remaining Leads",
+                data: remaining,
+                yAxisID: "y",
+                fill: true,
+                borderColor: "#3b82f6",
+                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                tension: 0.3,
+                pointBackgroundColor: "#3b82f6",
+              },
+              {
+                type: "bar",
+                label: "Drop Rate (%) vs. previous stage",
+                data: dropRates,
+                yAxisID: "y1",
+                backgroundColor: dropRateColors,
+                borderRadius: 4,
+                maxBarThickness: 28,
+              },
+            ],
           },
+          plugins: [pastThirdCallPlugin],
           options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: true, labels: { color: "#8b92a5" } } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
-              y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+              y: { position: "left", ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+              y1: {
+                position: "right",
+                ticks: { color: "#8b92a5", callback: (v) => v + "%" },
+                grid: { display: false },
+                min: 0,
+              },
             },
           },
         });
 
         document.getElementById("followup-table-skeleton").style.display = "none";
+        const dropoutRows = result.dropout_by_stage.map((row) => ({
+          ...row,
+          "Drop Rate": row["Drop Rate (%)"] != null ? row["Drop Rate (%)"].toFixed(1) + "%" : "—",
+        }));
+        const worstStage = result.dropout_by_stage
+          .filter((row) => row["Drop Rate (%)"] != null)
+          .reduce((worst, row) => (row["Drop Rate (%)"] > worst["Drop Rate (%)"] ? row : worst));
         renderTable(
           document.getElementById("followup-table-container"),
-          result.dropout_by_stage,
-          ["Stage", "Remaining Leads", "Drop From Previous Stage", "Drop Rate (%)"],
+          dropoutRows,
+          ["Stage", "Remaining Leads", "Drop From Previous Stage", "Drop Rate"],
+          { isWarning: (row) => row.Stage === worstStage.Stage },
         );
 
         const calloutEl = document.getElementById("followup-callout");
@@ -538,12 +723,21 @@
         document.getElementById("budget-tier-table-skeleton").style.display = "none";
         const rows = result.tiers.map((row) => ({
           ...row,
-          "Avg Conversion Rate": row.avg_conversion_rate != null ? (row.avg_conversion_rate * 100).toFixed(1) + "%" : "—",
+          "Avg Conversion Rate": row.avg_conversion_rate != null ? (row.avg_conversion_rate * 100).toFixed(1) + "%" : "No data",
+          "Observations": row.n_observations,
         }));
+        const tiersWithData = result.tiers.filter((row) => row.avg_conversion_rate != null);
+        const bestTier = tiersWithData.length
+          ? tiersWithData.reduce((best, row) => (row.avg_conversion_rate > best.avg_conversion_rate ? row : best))
+          : null;
         renderTable(
           document.getElementById("budget-tier-table-container"),
           rows,
-          ["Budget Tier", "Avg Conversion Rate", "n_observations"],
+          ["Budget Tier", "Avg Conversion Rate", "Observations"],
+          {
+            isRecommended: (row) => bestTier != null && row["Budget Tier"] === bestTier["Budget Tier"],
+            recommendedTag: "★ Best Converting",
+          },
         );
       } catch (err) {
         if (err.message !== "Not authenticated") errorEl.textContent = `Error: ${err.message}`;
@@ -578,6 +772,23 @@
         canvas.style.display = "block";
         const colors = byCount.map((_, i) => (i === 0 ? "#22c55e" : "#3b82f6"));
 
+        // byCount is sorted descending by predicted profit, so index 0
+        // (the highlighted green bar) is always the recommended one.
+        const recommendedLabelPlugin = {
+          id: "recommendedLabel",
+          afterDatasetsDraw(chart) {
+            const bar = chart.getDatasetMeta(0).data[0];
+            if (!bar) return;
+            const { ctx } = chart;
+            ctx.save();
+            ctx.fillStyle = "#22c55e";
+            ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Recommended", bar.x, bar.y - 10);
+            ctx.restore();
+          },
+        };
+
         if (budgetChart) budgetChart.destroy();
         budgetChart = new Chart(canvas, {
           type: "bar",
@@ -592,26 +803,199 @@
           },
           options: {
             responsive: true,
+            layout: { padding: { top: 24 } },
             plugins: { legend: { display: false } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { display: false } },
               y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
             },
           },
+          plugins: [recommendedLabelPlugin],
         });
 
+        const takeawayHeadingEl = document.getElementById("budget-takeaway-heading");
+        const takeawayEl = document.getElementById("budget-key-takeaway");
+        takeawayHeadingEl.style.display = "block";
+        takeawayEl.style.display = "block";
+        takeawayEl.textContent = result.key_takeaway;
+
         document.getElementById("budget-table-heading").style.display = "block";
+        const bestScenario = result.scenarios.reduce((best, s) =>
+          s["Predicted Profit"] > best["Predicted Profit"] ? s : best
+        );
         renderTable(
           document.getElementById("budget-table-container"),
           result.scenarios,
-          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
+          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "Predicted ROI"],
+          { isRecommended: (row) => row.Scenario === bestScenario.Scenario },
         );
+
+        renderBudgetIntelligence(result);
 
         return result;
       } catch (err) {
         errorEl.textContent = `Error: ${err.message}`;
         return null;
       }
+    }
+
+    function renderBudgetIntelligence(result) {
+      const exec = result.executive_summary;
+      document.getElementById("budget-executive-summary").style.display = "grid";
+      document.getElementById("exec-strategy").textContent = exec.recommended_strategy;
+      document.getElementById("exec-profit").textContent = fmtMoney(exec.expected_profit);
+      document.getElementById("exec-improvement").textContent =
+        (exec.estimated_improvement_pct >= 0 ? "+" : "") + exec.estimated_improvement_pct.toFixed(1) + "%";
+      const execStrengthEl = document.getElementById("exec-strength");
+      const strengthColorClass =
+        exec.recommendation_strength === "Strong"
+          ? "stat-value-green"
+          : exec.recommendation_strength === "Moderate"
+            ? "stat-value-orange"
+            : "stat-value-red";
+      execStrengthEl.className = `value ${strengthColorClass}`;
+      execStrengthEl.textContent = `${exec.recommendation_strength} · ${result.recommendation_strength.advantage_pct.toFixed(1)}%`;
+
+      document.getElementById("exec-takeaway").style.display = "block";
+      document.getElementById("exec-takeaway-text").textContent = result.key_takeaway;
+
+      document.getElementById("budget-bi-sections").style.display = "block";
+
+      document.getElementById("bi-insight").textContent = result.analysis.business_insight;
+      document.getElementById("bi-observation").textContent = result.analysis.key_observation;
+      document.getElementById("bi-impact").textContent = result.analysis.business_impact;
+
+      document.getElementById("bi-recommendation").textContent = result.recommendation;
+
+      const whyEl = document.getElementById("bi-why");
+      whyEl.innerHTML = "";
+      result.why.forEach((reason) => {
+        const li = document.createElement("li");
+        li.textContent = reason;
+        whyEl.appendChild(li);
+      });
+
+      function renderRatedCard(containerId, level, levelColorMap, badgeLine, explanation) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+        const badgeClass = levelColorMap[level] || "badge-orange";
+        const badgeSpan = document.createElement("span");
+        badgeSpan.className = `badge ${badgeClass} badge-lg`;
+        badgeSpan.textContent = badgeLine;
+        const explanationP = document.createElement("p");
+        explanationP.style.cssText = "color: var(--text-dim); font-size: 13px; margin-top: 10px;";
+        explanationP.textContent = explanation;
+        container.appendChild(badgeSpan);
+        container.appendChild(explanationP);
+      }
+
+      const reliability = result.model_reliability;
+      renderRatedCard(
+        "bi-model-reliability",
+        reliability.level,
+        { High: "badge-green", Medium: "badge-orange", Low: "badge-red" },
+        `${reliability.level} — ${reliability.metric}: ${reliability.score.toFixed(2)}`,
+        reliability.explanation,
+      );
+
+      function renderRecommendationStrengthCard(strength) {
+        const container = document.getElementById("bi-recommendation-strength");
+        container.innerHTML = "";
+
+        const badgeClass = { Strong: "badge-green", Moderate: "badge-orange", Marginal: "badge-red" }[strength.level] || "badge-orange";
+        const badgeSpan = document.createElement("span");
+        badgeSpan.className = `badge ${badgeClass} badge-lg`;
+        badgeSpan.textContent = `${strength.level} (${strength.advantage_pct.toFixed(1)}%)`;
+
+        const meaningP = document.createElement("p");
+        meaningP.style.cssText = "font-size: 14px; margin-top: 10px;";
+        meaningP.textContent = strength.business_meaning;
+
+        const whyHeader = document.createElement("p");
+        whyHeader.className = "mini-heading";
+        whyHeader.style.cssText = "margin-top: 14px; margin-bottom: 2px;";
+        whyHeader.textContent = "Why this rating?";
+
+        const explanationP = document.createElement("p");
+        explanationP.style.cssText = "color: var(--text-dim); font-size: 13px; margin-top: 4px;";
+        explanationP.textContent = strength.explanation;
+
+        container.appendChild(badgeSpan);
+        container.appendChild(meaningP);
+        container.appendChild(whyHeader);
+        container.appendChild(explanationP);
+      }
+      renderRecommendationStrengthCard(result.recommendation_strength);
+
+      document.getElementById("bi-top-drivers-note").textContent =
+        `Showing the top ${result.top_drivers.length} of ${result.n_features_total} model inputs, ranked by predictive importance — percentages are each feature's share of total importance across all ${result.n_features_total}, so they don't need to add up to 100%.`;
+
+      const driversEl = document.getElementById("bi-top-drivers");
+      driversEl.innerHTML = "";
+      result.top_drivers.forEach((driver) => {
+        const row = document.createElement("div");
+        row.className = "driver-row";
+
+        const header = document.createElement("div");
+        header.className = "driver-row-header";
+        const name = document.createElement("div");
+        name.className = "driver-name";
+        name.textContent = driver.feature.replace(/_/g, " ");
+        const pct = document.createElement("div");
+        pct.className = "driver-pct";
+        pct.textContent = `${driver.importance_pct.toFixed(1)}% of total importance`;
+        header.appendChild(name);
+        header.appendChild(pct);
+
+        const impact = document.createElement("div");
+        impact.className = "driver-impact";
+        impact.textContent = driver.business_impact;
+
+        const track = document.createElement("div");
+        track.className = "progress-track";
+        const fill = document.createElement("div");
+        fill.className = "progress-fill";
+        fill.style.width = `${Math.min(100, driver.importance_pct)}%`;
+        track.appendChild(fill);
+
+        row.appendChild(header);
+        row.appendChild(impact);
+        row.appendChild(track);
+        driversEl.appendChild(row);
+      });
+
+      function renderInsightList(containerId, group, tagLabels) {
+        const el = document.getElementById(containerId);
+        el.innerHTML = "";
+        group.data_driven.forEach((text, index) => {
+          const div = document.createElement("div");
+          div.className = "insight-item data-driven";
+          const tag = document.createElement("span");
+          tag.className = "insight-tag data-driven";
+          tag.textContent = tagLabels ? tagLabels.dataDriven(index) : "Data-Driven";
+          div.appendChild(tag);
+          div.appendChild(document.createTextNode(text));
+          el.appendChild(div);
+        });
+        for (const text of group.general) {
+          const div = document.createElement("div");
+          div.className = "insight-item general";
+          const tag = document.createElement("span");
+          tag.className = "insight-tag general";
+          tag.textContent = tagLabels ? tagLabels.general : "General";
+          div.appendChild(tag);
+          div.appendChild(document.createTextNode(text));
+          el.appendChild(div);
+        }
+      }
+      renderInsightList("bi-risks", result.risks, {
+        dataDriven: (index) => (index === 0 ? "Highest Risk" : "Secondary Risk"),
+        general: "General Consideration",
+      });
+      renderInsightList("bi-opportunities", result.opportunities, {
+        dataDriven: (index) => (index === 0 ? "Highest Opportunity" : "Secondary Opportunity"),
+        general: "General Recommendation",
+      });
     }
 
     document.getElementById("run-budget-optimization").addEventListener("click", runBudgetOptimization);
@@ -626,6 +1010,7 @@
     async function loadKpis() {
       try {
         const stats = await getJson("/statistics");
+        avgLtvMonths = stats.avg_ltv_months;
         setKpi("kpi-lifetime", stats.avg_ltv_months != null ? stats.avg_ltv_months.toFixed(1) + " mo" : "—");
         setKpi("kpi-upsell", stats.upsell_rate != null ? (stats.upsell_rate * 100).toFixed(0) + "%" : "—");
         setKpi("kpi-cac", stats.avg_customer_acquisition_cost != null ? fmtMoney(stats.avg_customer_acquisition_cost) : "—");

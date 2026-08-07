@@ -567,8 +567,38 @@ endpoints require auth, same as `/customers`/`/statistics`.
   `{"score": float, "tier": "Low"|"Medium"|"High"}`
 - `POST /budget-optimization` — samples `N = round(monthly_budget / mean(ad_budget))`
   real customer profiles from live Supabase data and runs Package 6's
-  4-scenario simulation (`simulate_budget_scenarios`) against them → the
-  scenario comparison table as JSON. Body: `{"monthly_budget": 50000}` (optional, defaults to 50,000).
+  4-scenario simulation (`simulate_budget_scenarios`) plus a campaign-count
+  sweep (`simulate_by_campaign_count`, 1/5/10/25/50 campaigns) against them.
+  Body: `{"monthly_budget": 50000}` (optional, defaults to 50,000). The
+  4-scenario table's ROI column is `"Predicted ROI"` (explicit, not just
+  `"ROI"`, to be clear it's a model prediction). Also returns a
+  business-intelligence layer built from the trained model's own metadata
+  (`models/metadata.json`, generated at export time — see
+  `scripts/export_models.py`), not recomputed per request: `executive_summary`
+  (recommended strategy, expected profit, estimated improvement, recommendation
+  strength), `key_takeaway` (one sentence synthesizing the recommendation and
+  whether its advantage over the current allocation is meaningful or
+  negligible), a 3-part `analysis` (business insight / observed pattern /
+  business implication), `recommendation` + `why` (category-level business
+  actions like "Reduce acquisition cost" — deliberately not a literal
+  per-feature statistical direction, which can read as a backwards
+  operational instruction due to correlated features), `top_drivers`
+  (feature + importance + `importance_pct` — share of the model's total
+  feature importance — + a plain-language business-impact sentence, derived
+  from a two-point partial-dependence check against the model's own
+  predictions, not a live correlation which can disagree with what a tree
+  model actually learned), and `risks`/`opportunities` each split into
+  `data_driven` (only added when
+  a real computed signal supports it) vs. `general` (labeled guidance, never
+  presented as a finding). Two deliberately separate rated metrics, each
+  answering a different question: `model_reliability` (`level`/`score`/`metric`/
+  `explanation` — the trained model's own cross-validation R², nothing else)
+  and `recommendation_strength` (`level`/`advantage_pct`/`explanation` — how
+  much the best scenario's predicted profit leads the next-best alternative,
+  nothing about model quality). Kept separate on purpose: a model can have
+  strong CV performance while several allocation scenarios still predict
+  near-identical profit (or vice versa) — blending the two into one score
+  would misrepresent either question.
 - `GET /followup-analysis` — Package 5's dropout/call-effort analysis, run
   live against current Supabase data instead of the frozen CSV → dropout-by-stage
   table, call stats, and the business conclusion/recommendation.

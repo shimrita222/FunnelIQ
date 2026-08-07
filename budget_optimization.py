@@ -25,12 +25,15 @@ import pandas as pd
 import seaborn as sns
 from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
-from sklearn.base import RegressorMixin
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import KFold, cross_validate, train_test_split
 from xgboost import XGBRegressor
 
-from budget_simulation import simulate_budget_scenarios
+from budget_simulation import (
+    calculate_feature_importance,
+    generate_business_report,
+    simulate_budget_scenarios,
+)
 
 sns.set_theme(style="whitegrid")
 
@@ -175,16 +178,6 @@ cv_comparison
 
 
 # %%
-def calculate_feature_importance(model: RegressorMixin, feature_names: list[str]) -> pd.Series:
-    """Read-only accessor: importances off an already-fitted model, sorted descending."""
-    if hasattr(model, "get_feature_importance"):  # CatBoost
-        importances = model.get_feature_importance()
-    else:  # XGBoost / LightGBM
-        importances = model.feature_importances_
-    return pd.Series(importances, index=feature_names).sort_values(ascending=False)
-
-
-# %%
 importances = calculate_feature_importance(best_model, X_train.columns.tolist())
 top_10_features = importances.head(10)
 top_10_features
@@ -219,47 +212,6 @@ scenario_comparison
 
 # %% [markdown]
 # ## Business Report
-
-
-# %%
-def generate_business_report(comparison_df: pd.DataFrame, importance: pd.Series) -> dict:
-    """Answer the brief's business questions from the actual computed results."""
-    best_scenario = comparison_df.loc[comparison_df["Predicted Profit"].idxmax()]
-    equal_row = comparison_df.iloc[0]
-    increase_row = comparison_df.iloc[1]
-    decrease_row = comparison_df.iloc[2]
-
-    equal_is_optimal = best_scenario["Scenario"] == equal_row["Scenario"]
-    more_budget_helps = increase_row["Predicted Profit"] > equal_row["Predicted Profit"]
-    less_budget_hurts = decrease_row["Predicted Profit"] < equal_row["Predicted Profit"]
-    top_feature = importance.index[0]
-
-    answers = {
-        "is_equal_allocation_optimal": equal_is_optimal,
-        "best_scenario": best_scenario["Scenario"],
-        "does_more_budget_always_help": more_budget_helps and less_budget_hurts,
-        "top_profit_driver": top_feature,
-    }
-
-    recommendation = (
-        f"Best-performing scenario: '{best_scenario['Scenario']}' "
-        f"(predicted profit NIS {best_scenario['Predicted Profit']:,.0f}, "
-        f"{best_scenario['Profit Difference']:+,.0f} vs. the current equal-allocation "
-        f"strategy). Equal allocation is "
-        + ("" if equal_is_optimal else "NOT ")
-        + "the optimal strategy among those tested. "
-        + (
-            "More total budget does increase predicted profit, and less budget "
-            "reduces it, consistent with a straightforward spend-response "
-            "relationship in this range."
-            if answers["does_more_budget_always_help"]
-            else "Predicted profit does not scale simply with total budget size — "
-            "check the scenario table for where the relationship breaks down."
-        )
-        + f" The strongest driver of predicted profit is '{top_feature}'."
-    )
-
-    return {"answers": answers, "recommendation": recommendation}
 
 
 # %%

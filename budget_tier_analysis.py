@@ -42,4 +42,8 @@ def calculate_conversion_by_tier(data: pd.DataFrame) -> pd.DataFrame:
         .agg(avg_conversion_rate="mean", n_observations="count")
         .reindex(TIER_ORDER)
     )
+    # A tier with zero matching rows is a real "0", not missing/unknown data -
+    # reindex() leaves it NaN, which the API layer would otherwise render
+    # identically to a genuinely unknown value.
+    grouped["n_observations"] = grouped["n_observations"].fillna(0).astype(int)
     return grouped.reset_index().rename(columns={"budget_tier": "Budget Tier"})
