@@ -174,11 +174,14 @@
     .why-list li::before { content: "✓ "; color: var(--accent-green); font-weight: 700; }
 
     /* Top drivers */
-    .driver-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); gap: 12px; }
+    .driver-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
     .driver-row:last-child { border-bottom: none; }
+    .driver-row-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
     .driver-name { font-weight: 600; font-size: 14px; text-transform: capitalize; }
+    .driver-pct { font-size: 13px; font-weight: 700; color: var(--accent-blue); white-space: nowrap; }
     .driver-impact { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
-    .driver-importance { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+    .driver-row .progress-track { margin-top: 8px; }
+    .driver-row .progress-fill { background: var(--accent-blue); }
 
     /* Data-driven vs. general insight lists */
     .insight-item { padding: 8px 12px; border-left: 3px solid; margin-bottom: 8px; font-size: 14px; border-radius: 0 6px 6px 0; background: var(--surface-2); }
@@ -381,15 +384,17 @@
       <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
+      <h3 class="mini-heading" id="budget-takeaway-heading" style="display: none; margin-top: 16px;">Key Takeaway</h3>
+      <div class="callout" id="budget-key-takeaway" style="display: none;"></div>
       <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
 
       <div id="budget-bi-sections" style="display: none;">
         <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis</h3>
         <div class="callout">
-          <p><strong>Business Insight</strong><br /><span id="bi-insight"></span></p>
-          <p><strong>Key Observation</strong><br /><span id="bi-observation"></span></p>
-          <p style="margin-bottom: 0;"><strong>Business Impact</strong><br /><span id="bi-impact"></span></p>
+          <p><strong>Key Business Insight</strong><br /><span id="bi-insight"></span></p>
+          <p><strong>Observed Pattern</strong><br /><span id="bi-observation"></span></p>
+          <p style="margin-bottom: 0;"><strong>Business Implication</strong><br /><span id="bi-impact"></span></p>
         </div>
 
         <h3 class="mini-heading" style="margin-top: 24px;">Recommendation</h3>
@@ -640,6 +645,23 @@
         canvas.style.display = "block";
         const colors = byCount.map((_, i) => (i === 0 ? "#22c55e" : "#3b82f6"));
 
+        // byCount is sorted descending by predicted profit, so index 0
+        // (the highlighted green bar) is always the recommended one.
+        const recommendedLabelPlugin = {
+          id: "recommendedLabel",
+          afterDatasetsDraw(chart) {
+            const bar = chart.getDatasetMeta(0).data[0];
+            if (!bar) return;
+            const { ctx } = chart;
+            ctx.save();
+            ctx.fillStyle = "#22c55e";
+            ctx.font = "bold 12px -apple-system, BlinkMacSystemFont, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Recommended", bar.x, bar.y - 10);
+            ctx.restore();
+          },
+        };
+
         if (budgetChart) budgetChart.destroy();
         budgetChart = new Chart(canvas, {
           type: "bar",
@@ -654,19 +676,27 @@
           },
           options: {
             responsive: true,
+            layout: { padding: { top: 24 } },
             plugins: { legend: { display: false } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { display: false } },
               y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
             },
           },
+          plugins: [recommendedLabelPlugin],
         });
+
+        const takeawayHeadingEl = document.getElementById("budget-takeaway-heading");
+        const takeawayEl = document.getElementById("budget-key-takeaway");
+        takeawayHeadingEl.style.display = "block";
+        takeawayEl.style.display = "block";
+        takeawayEl.textContent = result.key_takeaway;
 
         document.getElementById("budget-table-heading").style.display = "block";
         renderTable(
           document.getElementById("budget-table-container"),
           result.scenarios,
-          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"],
+          ["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "Predicted ROI"],
         );
 
         renderBudgetIntelligence(result);
@@ -734,63 +764,98 @@
         reliability.explanation,
       );
 
-      const strength = result.recommendation_strength;
-      renderRatedCard(
-        "bi-recommendation-strength",
-        strength.level,
-        { Strong: "badge-green", Moderate: "badge-orange", Marginal: "badge-red" },
-        `${strength.level} — Best Strategy Advantage: ${strength.advantage_pct.toFixed(1)}%`,
-        strength.explanation,
-      );
+      function renderRecommendationStrengthCard(strength) {
+        const container = document.getElementById("bi-recommendation-strength");
+        container.innerHTML = "";
+
+        const badgeClass = { Strong: "badge-green", Moderate: "badge-orange", Marginal: "badge-red" }[strength.level] || "badge-orange";
+        const badgeSpan = document.createElement("span");
+        badgeSpan.className = `badge ${badgeClass} badge-lg`;
+        badgeSpan.textContent = strength.level;
+
+        const advantageP = document.createElement("p");
+        advantageP.style.cssText = "font-size: 14px; font-weight: 600; margin-top: 10px;";
+        advantageP.textContent = `Best strategy advantage: ${strength.advantage_pct.toFixed(1)}%`;
+
+        const whyHeader = document.createElement("p");
+        whyHeader.className = "mini-heading";
+        whyHeader.style.cssText = "margin-top: 14px; margin-bottom: 2px;";
+        whyHeader.textContent = "Why this rating?";
+
+        const explanationP = document.createElement("p");
+        explanationP.style.cssText = "color: var(--text-dim); font-size: 13px; margin-top: 4px;";
+        explanationP.textContent = strength.explanation;
+
+        container.appendChild(badgeSpan);
+        container.appendChild(advantageP);
+        container.appendChild(whyHeader);
+        container.appendChild(explanationP);
+      }
+      renderRecommendationStrengthCard(result.recommendation_strength);
 
       const driversEl = document.getElementById("bi-top-drivers");
       driversEl.innerHTML = "";
       result.top_drivers.forEach((driver) => {
         const row = document.createElement("div");
         row.className = "driver-row";
-        const info = document.createElement("div");
+
+        const header = document.createElement("div");
+        header.className = "driver-row-header";
         const name = document.createElement("div");
         name.className = "driver-name";
         name.textContent = driver.feature.replace(/_/g, " ");
+        const pct = document.createElement("div");
+        pct.className = "driver-pct";
+        pct.textContent = `${driver.importance_pct.toFixed(1)}% of total importance`;
+        header.appendChild(name);
+        header.appendChild(pct);
+
         const impact = document.createElement("div");
         impact.className = "driver-impact";
         impact.textContent = driver.business_impact;
-        info.appendChild(name);
-        info.appendChild(impact);
-        const importanceEl = document.createElement("div");
-        importanceEl.className = "driver-importance";
-        importanceEl.textContent = `Importance: ${driver.importance.toFixed(1)}`;
-        row.appendChild(info);
-        row.appendChild(importanceEl);
+
+        const track = document.createElement("div");
+        track.className = "progress-track";
+        const fill = document.createElement("div");
+        fill.className = "progress-fill";
+        fill.style.width = `${Math.min(100, driver.importance_pct)}%`;
+        track.appendChild(fill);
+
+        row.appendChild(header);
+        row.appendChild(impact);
+        row.appendChild(track);
         driversEl.appendChild(row);
       });
 
-      function renderInsightList(containerId, group) {
+      function renderInsightList(containerId, group, tagLabels) {
         const el = document.getElementById(containerId);
         el.innerHTML = "";
-        for (const text of group.data_driven) {
+        group.data_driven.forEach((text, index) => {
           const div = document.createElement("div");
           div.className = "insight-item data-driven";
           const tag = document.createElement("span");
           tag.className = "insight-tag data-driven";
-          tag.textContent = "Data-Driven";
+          tag.textContent = tagLabels ? tagLabels.dataDriven(index) : "Data-Driven";
           div.appendChild(tag);
           div.appendChild(document.createTextNode(text));
           el.appendChild(div);
-        }
+        });
         for (const text of group.general) {
           const div = document.createElement("div");
           div.className = "insight-item general";
           const tag = document.createElement("span");
           tag.className = "insight-tag general";
-          tag.textContent = "General";
+          tag.textContent = tagLabels ? tagLabels.general : "General";
           div.appendChild(tag);
           div.appendChild(document.createTextNode(text));
           el.appendChild(div);
         }
       }
       renderInsightList("bi-risks", result.risks);
-      renderInsightList("bi-opportunities", result.opportunities);
+      renderInsightList("bi-opportunities", result.opportunities, {
+        dataDriven: (index) => (index === 0 ? "Highest Opportunity" : "Secondary Opportunity"),
+        general: "General Recommendation",
+      });
     }
 
     document.getElementById("run-budget-optimization").addEventListener("click", runBudgetOptimization);

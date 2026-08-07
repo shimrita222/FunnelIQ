@@ -17,11 +17,14 @@ from supabase import Client
 from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
 from budget_simulation import (
+    CATEGORY_ACTION_PHRASES,
     calculate_feature_importance,
     calculate_model_reliability,
     calculate_recommendation_strength,
+    categorize_budget_driver,
     describe_driver_business_impact,
     generate_budget_business_analysis,
+    generate_budget_key_takeaway,
     generate_budget_risks_and_opportunities,
     generate_business_report,
     simulate_budget_scenarios,
@@ -154,6 +157,7 @@ def budget_optimization(
     recommendation_strength = calculate_recommendation_strength(scenarios)
     analysis = generate_budget_business_analysis(scenarios, importance, by_campaign_count, driver_directions)
     risks_opportunities = generate_budget_risks_and_opportunities(scenarios, importance, by_campaign_count)
+    key_takeaway = generate_budget_key_takeaway(by_campaign_count, recommendation_strength)
 
     # "Improvement" is normalized to profit-per-campaign so it's a fair
     # comparison across the different campaign counts tested (raw total
@@ -174,23 +178,31 @@ def budget_optimization(
         "recommendation_strength": recommendation_strength["level"],
     }
 
+    importance_total = float(importance.sum())
     top_drivers = [
         {
             "feature": feature,
             "importance": float(importance[feature]),
+            "importance_pct": round(float(importance[feature]) / importance_total * 100, 1) if importance_total else 0.0,
             "business_impact": describe_driver_business_impact(feature, info["direction"], info["strength"]),
         }
         for feature, info in driver_directions.items()
     ]
-    why = [
-        f"{'Lower' if info['direction'] == 'negative' else 'Higher'} {feature.replace('_', ' ')}"
-        for feature, info in list(driver_directions.items())[:3]
-    ]
+    # Category-level business actions, not a literal per-feature PDP
+    # direction ("Lower leads answered") - see CATEGORY_ACTION_PHRASES.
+    why: list[str] = []
+    for feature in driver_directions:
+        phrase = CATEGORY_ACTION_PHRASES.get(categorize_budget_driver(feature))
+        if phrase and phrase not in why:
+            why.append(phrase)
+        if len(why) == 3:
+            break
 
     return {
         "n_campaigns": n_campaigns,
         "scenarios": scenarios.to_dict(orient="records"),
         "by_campaign_count": by_campaign_count.to_dict(orient="records"),
+        "key_takeaway": key_takeaway,
         "executive_summary": executive_summary,
         "analysis": analysis,
         "recommendation": report["recommendation"],

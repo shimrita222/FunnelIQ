@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from backend.auth import get_current_user
 from backend.main import app
 from backend.supabase_client import get_supabase_admin_client
+from budget_simulation import CATEGORY_ACTION_PHRASES
 
 SAMPLE_FEATURES = {
     "ad_budget": 5000.0,
@@ -125,6 +126,9 @@ def test_budget_optimization():
 
     assert body["recommendation"]
     assert len(body["why"]) > 0
+    assert set(body["why"]).issubset(set(CATEGORY_ACTION_PHRASES.values()))
+
+    assert body["key_takeaway"]
 
     reliability = body["model_reliability"]
     assert reliability["level"] in {"High", "Medium", "Low"}
@@ -141,6 +145,7 @@ def test_budget_optimization():
     for driver in body["top_drivers"]:
         assert driver["feature"]
         assert isinstance(driver["importance"], float)
+        assert 0.0 <= driver["importance_pct"] <= 100.0
         assert driver["business_impact"]
 
     for group in (body["risks"], body["opportunities"]):

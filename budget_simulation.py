@@ -112,8 +112,8 @@ def simulate_budget_scenarios(
     )
     scenarios["Average Budget"] = scenarios["Total Budget"] / n
     scenarios["Profit Difference"] = scenarios["Predicted Profit"] - scenario_1_profit
-    scenarios["ROI"] = (scenarios["Predicted Profit"] - scenarios["Total Budget"]) / scenarios["Total Budget"]
-    return scenarios[["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "ROI"]]
+    scenarios["Predicted ROI"] = (scenarios["Predicted Profit"] - scenarios["Total Budget"]) / scenarios["Total Budget"]
+    return scenarios[["Scenario", "Average Budget", "Predicted Profit", "Profit Difference", "Predicted ROI"]]
 
 
 def simulate_by_campaign_count(
@@ -160,6 +160,17 @@ CATEGORY_ACTION = {
     "lead volume": "growing qualified lead volume",
     "funnel execution": "improving follow-up execution and conversion efficiency",
     "acquisition cost & spend": "reducing acquisition cost",
+}
+
+# Imperative, checklist-style phrasing for the "why" bullets under the
+# Recommendation - deliberately at the category level, not a literal
+# restatement of a single feature's PDP direction (e.g. "Lower leads
+# answered"), which can read as a backwards operational instruction due to
+# correlated features being held fixed in the two-point PDP check.
+CATEGORY_ACTION_PHRASES = {
+    "lead volume": "Improve lead quality and qualification",
+    "funnel execution": "Improve follow-up and funnel efficiency",
+    "acquisition cost & spend": "Reduce acquisition cost",
 }
 
 STRENGTH_ADVERB = {"strong": "strongly", "medium": "moderately", "weak": "weakly"}
@@ -211,26 +222,73 @@ def calculate_model_reliability(model_cv_r2: float) -> dict:
 def calculate_recommendation_strength(scenarios: pd.DataFrame) -> dict:
     """How decisively the best scenario beats the next-best - no model-quality data."""
     sorted_df = scenarios.sort_values("Predicted Profit", ascending=False)
-    best = sorted_df.iloc[0]["Predicted Profit"]
-    second_best = sorted_df.iloc[1]["Predicted Profit"]
+    best_row, second_row = sorted_df.iloc[0], sorted_df.iloc[1]
+    best, second_best = best_row["Predicted Profit"], second_row["Predicted Profit"]
     advantage_pct = round((best - second_best) / abs(best) * 100, 1) if best else 0.0
     level = "Strong" if advantage_pct >= 10.0 else "Moderate" if advantage_pct >= 2.0 else "Marginal"
-    explanation = {
+
+    # Lead with the mechanism (what was compared), then the implication -
+    # "why this rating" before "what it means", not the other way around.
+    mechanism = {
+        "Strong": (
+            f"The recommended allocation ('{best_row['Scenario']}') predicts meaningfully higher "
+            f"profit than the next-best alternative tested ('{second_row['Scenario']}')."
+        ),
+        "Moderate": (
+            f"The recommended allocation ('{best_row['Scenario']}') performs somewhat better than "
+            f"the next-best alternative tested ('{second_row['Scenario']}')."
+        ),
+        "Marginal": (
+            f"The recommended allocation ('{best_row['Scenario']}') performs almost identically to "
+            f"the second-best scenario tested ('{second_row['Scenario']}')."
+        ),
+    }[level]
+    implication = {
         "Strong": "The recommended allocation clearly outperforms the alternatives tested.",
         "Moderate": "The recommended strategy is preferred, but a competing allocation is expected to perform closely.",
-        "Marginal": "Several allocation strategies produce nearly identical predicted profit - the choice among them makes little practical difference.",
+        "Marginal": (
+            "This indicates several allocation strategies are expected to generate similar profit - "
+            "the choice among them makes little practical difference."
+        ),
     }[level]
+    explanation = f"{mechanism} {implication}"
 
-    # Name any other scenarios within 2% of the best predicted profit, so
-    # "practically equivalent" isn't just asserted but shown.
+    # Name any *further* scenarios (beyond the second-best already named
+    # above) within 2% of the best predicted profit.
     within_2pct = abs(best) * 0.02
-    close = sorted_df.iloc[1:][(best - sorted_df.iloc[1:]["Predicted Profit"]) <= within_2pct]["Scenario"].tolist()
+    remaining = sorted_df.iloc[2:]
+    close = remaining[(best - remaining["Predicted Profit"]) <= within_2pct]["Scenario"].tolist()
     if close:
         names = ", ".join(f"'{s}'" for s in close)
         verb = "is" if len(close) == 1 else "are"
-        explanation += f" {names} {verb} within 2% of the best predicted profit and would be a practically equivalent choice."
+        explanation += f" {names} {verb} also within 2% of the best predicted profit."
 
     return {"level": level, "advantage_pct": advantage_pct, "explanation": explanation}
+
+
+def generate_budget_key_takeaway(by_campaign_count: pd.DataFrame, recommendation_strength: dict) -> str:
+    """One sentence for display directly under the chart - reuses the
+    already-computed recommended campaign count/profit and the
+    recommendation-strength level, no new judgment logic."""
+    best_row = by_campaign_count.loc[by_campaign_count["predicted_profit"].idxmax()]
+    n = int(best_row["n_campaigns"])
+    profit = best_row["predicted_profit"]
+
+    if recommendation_strength["level"] == "Marginal":
+        return (
+            f"Although {n} campaigns generated the highest predicted profit (NIS {profit:,.0f}), the "
+            "advantage over the current allocation is negligible. This suggests budget allocation is "
+            "not the primary driver of profitability in this dataset."
+        )
+    if recommendation_strength["level"] == "Moderate":
+        return (
+            f"Spreading the budget across {n} campaigns is predicted to modestly outperform the current "
+            f"allocation, with total predicted profit of NIS {profit:,.0f}."
+        )
+    return (
+        f"Spreading the budget across {n} campaigns is predicted to clearly outperform the current "
+        f"allocation, with total predicted profit of NIS {profit:,.0f}."
+    )
 
 
 def generate_budget_business_analysis(
