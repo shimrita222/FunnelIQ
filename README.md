@@ -7,6 +7,11 @@ follow-up policy and ad budget allocation.
 
 Live URL: https://funnelmarketingdata-production.up.railway.app
 
+**Demo login** (read-only access, safe to share — the underlying data is the
+synthetic `funnel_marketing_data.csv`, no real customer data):
+- Email: `demo@funneliq.app`
+- Password: `FunnelIQ-Demo-2026`
+
 ## Architecture
 
 | Layer      | Tech                                   | Folder       |
