@@ -18,7 +18,8 @@ from backend.auth import get_current_user
 from backend.supabase_client import get_supabase_admin_client
 from budget_simulation import (
     calculate_feature_importance,
-    calculate_recommendation_confidence,
+    calculate_model_reliability,
+    calculate_recommendation_strength,
     describe_driver_business_impact,
     generate_budget_business_analysis,
     generate_budget_risks_and_opportunities,
@@ -149,7 +150,8 @@ def budget_optimization(
     driver_directions = budget_metadata["driver_directions"]
     importance = calculate_feature_importance(_budget_bundle["model"], feature_cols)
     report = generate_business_report(scenarios, importance)
-    confidence = calculate_recommendation_confidence(scenarios, budget_metadata["cv_r2"])
+    model_reliability = calculate_model_reliability(budget_metadata["cv_r2"])
+    recommendation_strength = calculate_recommendation_strength(scenarios)
     analysis = generate_budget_business_analysis(scenarios, importance, by_campaign_count, driver_directions)
     risks_opportunities = generate_budget_risks_and_opportunities(scenarios, importance, by_campaign_count)
 
@@ -169,7 +171,7 @@ def budget_optimization(
         "recommended_strategy": f"{int(best_campaign_row['n_campaigns'])} campaigns",
         "expected_profit": float(best_campaign_row["predicted_profit"]),
         "estimated_improvement_pct": round(improvement_pct, 1),
-        "confidence_score": confidence["confidence_score"],
+        "recommendation_strength": recommendation_strength["level"],
     }
 
     top_drivers = [
@@ -193,9 +195,8 @@ def budget_optimization(
         "analysis": analysis,
         "recommendation": report["recommendation"],
         "why": why,
-        "confidence": confidence["confidence"],
-        "confidence_score": confidence["confidence_score"],
-        "confidence_explanation": confidence["explanation"],
+        "model_reliability": model_reliability,
+        "recommendation_strength": recommendation_strength,
         "top_drivers": top_drivers,
         "risks": risks_opportunities["risks"],
         "opportunities": risks_opportunities["opportunities"],

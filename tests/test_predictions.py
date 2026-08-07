@@ -118,7 +118,7 @@ def test_budget_optimization():
     exec_summary = body["executive_summary"]
     assert exec_summary["recommended_strategy"]
     assert isinstance(exec_summary["expected_profit"], float)
-    assert 0.0 <= exec_summary["confidence_score"] <= 1.0
+    assert exec_summary["recommendation_strength"] in {"Strong", "Moderate", "Marginal"}
 
     assert set(body["analysis"].keys()) == {"business_insight", "key_observation", "business_impact"}
     assert all(body["analysis"].values())
@@ -126,9 +126,16 @@ def test_budget_optimization():
     assert body["recommendation"]
     assert len(body["why"]) > 0
 
-    assert body["confidence"] in {"High", "Medium", "Low"}
-    assert 0.0 <= body["confidence_score"] <= 1.0
-    assert body["confidence_explanation"]
+    reliability = body["model_reliability"]
+    assert reliability["level"] in {"High", "Medium", "Low"}
+    assert 0.0 <= reliability["score"] <= 1.0
+    assert reliability["metric"]
+    assert reliability["explanation"]
+
+    strength = body["recommendation_strength"]
+    assert strength["level"] in {"Strong", "Moderate", "Marginal"}
+    assert isinstance(strength["advantage_pct"], float)
+    assert strength["explanation"]
 
     assert len(body["top_drivers"]) > 0
     for driver in body["top_drivers"]:

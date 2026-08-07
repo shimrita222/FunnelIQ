@@ -189,27 +189,48 @@ def describe_driver_business_impact(feature_name: str, direction: str, strength:
     return f"{verb} {display} is {adverb} associated with higher predicted profit.".replace("  ", " ")
 
 
-def calculate_recommendation_confidence(scenarios: pd.DataFrame, model_cv_r2: float) -> dict:
-    """Confidence in the recommendation - not just the model.
+def calculate_model_reliability(model_cv_r2: float) -> dict:
+    """Reliability of the trained model itself - CV R2 only, no scenario data.
 
-    Combines two already-available signals, weighted equally, no arbitrary
-    heuristics: (1) the budget model's own cross-validation R2 (from
-    models/metadata.json, not recomputed here - that would mean retraining),
-    and (2) how clearly the best scenario leads the next-best alternative
-    (a scenario table where all options are near-identical warrants lower
-    confidence in recommending one over the others, regardless of model fit).
+    Deliberately separate from calculate_recommendation_strength: model fit
+    quality and "how much better is this specific recommendation" are two
+    different questions and must not be blended into one score.
     """
-    sorted_profits = scenarios["Predicted Profit"].sort_values(ascending=False)
-    best, second_best = sorted_profits.iloc[0], sorted_profits.iloc[1]
-    separation = min(1.0, (best - second_best) / abs(best)) if best else 0.0
-    score = round((model_cv_r2 + separation) / 2, 2)
-    confidence = "High" if score >= 0.7 else "Medium" if score >= 0.4 else "Low"
+    level = "High" if model_cv_r2 >= 0.7 else "Medium" if model_cv_r2 >= 0.4 else "Low"
     explanation = (
-        f"The underlying model explains ~{model_cv_r2 * 100:.0f}% of profit variance in "
-        f"cross-validation (R² ≈ {model_cv_r2:.2f}), and the recommended scenario's "
-        f"predicted profit leads the next-best alternative tested by {separation * 100:.0f}%."
+        f"The model explains approximately {model_cv_r2 * 100:.0f}% of the variance in "
+        f"historical profit during 5-fold cross-validation (R² ≈ {model_cv_r2:.2f}). "
+        "Predictions are expected to be reliable for campaigns similar to those seen "
+        "during model training; results may be less dependable for budgets or profiles "
+        "well outside that historical range. This score reflects historical validation "
+        "performance and should not be interpreted as a guarantee of future outcomes."
     )
-    return {"confidence": confidence, "confidence_score": score, "explanation": explanation}
+    return {"level": level, "score": model_cv_r2, "metric": "CV R²", "explanation": explanation}
+
+
+def calculate_recommendation_strength(scenarios: pd.DataFrame) -> dict:
+    """How decisively the best scenario beats the next-best - no model-quality data."""
+    sorted_df = scenarios.sort_values("Predicted Profit", ascending=False)
+    best = sorted_df.iloc[0]["Predicted Profit"]
+    second_best = sorted_df.iloc[1]["Predicted Profit"]
+    advantage_pct = round((best - second_best) / abs(best) * 100, 1) if best else 0.0
+    level = "Strong" if advantage_pct >= 10.0 else "Moderate" if advantage_pct >= 2.0 else "Marginal"
+    explanation = {
+        "Strong": "The recommended allocation clearly outperforms the alternatives tested.",
+        "Moderate": "The recommended strategy is preferred, but a competing allocation is expected to perform closely.",
+        "Marginal": "Several allocation strategies produce nearly identical predicted profit - the choice among them makes little practical difference.",
+    }[level]
+
+    # Name any other scenarios within 2% of the best predicted profit, so
+    # "practically equivalent" isn't just asserted but shown.
+    within_2pct = abs(best) * 0.02
+    close = sorted_df.iloc[1:][(best - sorted_df.iloc[1:]["Predicted Profit"]) <= within_2pct]["Scenario"].tolist()
+    if close:
+        names = ", ".join(f"'{s}'" for s in close)
+        verb = "is" if len(close) == 1 else "are"
+        explanation += f" {names} {verb} within 2% of the best predicted profit and would be a practically equivalent choice."
+
+    return {"level": level, "advantage_pct": advantage_pct, "explanation": explanation}
 
 
 def generate_budget_business_analysis(
