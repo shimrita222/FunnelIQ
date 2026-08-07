@@ -169,8 +169,8 @@ CATEGORY_ACTION = {
 # correlated features being held fixed in the two-point PDP check.
 CATEGORY_ACTION_PHRASES = {
     "lead volume": "Improve lead quality and qualification",
-    "funnel execution": "Improve follow-up and funnel efficiency",
-    "acquisition cost & spend": "Reduce acquisition cost",
+    "funnel execution": "Improve follow-up efficiency",
+    "acquisition cost & spend": "Reduce customer acquisition cost",
 }
 
 STRENGTH_ADVERB = {"strong": "strongly", "medium": "moderately", "weak": "weakly"}
@@ -253,6 +253,25 @@ def calculate_recommendation_strength(scenarios: pd.DataFrame) -> dict:
     }[level]
     explanation = f"{mechanism} {implication}"
 
+    # Short, standalone business-meaning sentence for display next to the
+    # badge - distinct from `explanation` (which pairs mechanism + implication
+    # for the "Why this rating?" detail section below it).
+    business_meaning = {
+        "Strong": (
+            "The recommended allocation clearly outperforms the alternatives tested - switching to a "
+            "different strategy would meaningfully reduce expected profit."
+        ),
+        "Moderate": (
+            "The recommended strategy is preferred, but a competing allocation is expected to perform "
+            "closely - the business impact of switching is moderate."
+        ),
+        "Marginal": (
+            "Several allocation strategies are expected to produce nearly identical profit. The "
+            "recommended strategy is preferred, but the business impact of choosing another tested "
+            "strategy is minimal."
+        ),
+    }[level]
+
     # Name any *further* scenarios (beyond the second-best already named
     # above) within 2% of the best predicted profit.
     within_2pct = abs(best) * 0.02
@@ -263,7 +282,22 @@ def calculate_recommendation_strength(scenarios: pd.DataFrame) -> dict:
         verb = "is" if len(close) == 1 else "are"
         explanation += f" {names} {verb} also within 2% of the best predicted profit."
 
-    return {"level": level, "advantage_pct": advantage_pct, "explanation": explanation}
+    return {
+        "level": level,
+        "advantage_pct": advantage_pct,
+        "explanation": explanation,
+        "business_meaning": business_meaning,
+    }
+
+
+def calculate_recommendation_strength_by_campaign_count(by_campaign_count: pd.DataFrame) -> dict:
+    """Same decisiveness metric as calculate_recommendation_strength, but comparing
+    campaign-count options against each other - the comparison the Executive
+    Summary's "Recommended Strategy" and this Strength badge actually refer to -
+    instead of total-budget-size scenarios at a fixed campaign count."""
+    renamed = by_campaign_count.rename(columns={"n_campaigns": "Scenario", "predicted_profit": "Predicted Profit"}).copy()
+    renamed["Scenario"] = renamed["Scenario"].apply(lambda n: f"{int(n)} campaigns")
+    return calculate_recommendation_strength(renamed)
 
 
 def generate_budget_key_takeaway(by_campaign_count: pd.DataFrame, recommendation_strength: dict) -> str:

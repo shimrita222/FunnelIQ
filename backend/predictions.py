@@ -20,7 +20,7 @@ from budget_simulation import (
     CATEGORY_ACTION_PHRASES,
     calculate_feature_importance,
     calculate_model_reliability,
-    calculate_recommendation_strength,
+    calculate_recommendation_strength_by_campaign_count,
     categorize_budget_driver,
     describe_driver_business_impact,
     generate_budget_business_analysis,
@@ -154,7 +154,7 @@ def budget_optimization(
     importance = calculate_feature_importance(_budget_bundle["model"], feature_cols)
     report = generate_business_report(scenarios, importance)
     model_reliability = calculate_model_reliability(budget_metadata["cv_r2"])
-    recommendation_strength = calculate_recommendation_strength(scenarios)
+    recommendation_strength = calculate_recommendation_strength_by_campaign_count(by_campaign_count)
     analysis = generate_budget_business_analysis(scenarios, importance, by_campaign_count, driver_directions)
     risks_opportunities = generate_budget_risks_and_opportunities(scenarios, importance, by_campaign_count)
     key_takeaway = generate_budget_key_takeaway(by_campaign_count, recommendation_strength)
@@ -210,6 +210,7 @@ def budget_optimization(
         "model_reliability": model_reliability,
         "recommendation_strength": recommendation_strength,
         "top_drivers": top_drivers,
+        "n_features_total": len(feature_cols),
         "risks": risks_opportunities["risks"],
         "opportunities": risks_opportunities["opportunities"],
     }
