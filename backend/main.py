@@ -1,5 +1,5 @@
 from fastapi import Depends, FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from supabase import Client
 
@@ -14,7 +14,7 @@ app.include_router(predictions.router)
 
 @app.get("/")
 def root():
-    return {"message": "FunnelIQ backend is running"}
+    return RedirectResponse("/login")
 
 
 @app.get("/health")

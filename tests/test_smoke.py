@@ -12,6 +12,6 @@ def test_health():
 
 
 def test_root():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "FunnelIQ backend is running"}
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "/login"
