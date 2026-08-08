@@ -70,10 +70,17 @@ Mean R² ≈ 0.76), used to simulate reallocating the ₪50,000/month budget acr
 simulated +20% budget increase produced **zero** additional predicted profit;
 a profit-weighted reallocation across profiles actually **underperformed**
 simple equal allocation. Once lead volume and follow-up execution are known,
-raw ad spend adds almost nothing further to the profit prediction.
+raw ad spend adds almost nothing further to the profit prediction. A second,
+independent check confirms this: spreading the same total budget across more
+campaigns doesn't improve efficiency either — predicted profit **per
+campaign** is roughly flat (~₪13,000–14,300) from 5 through 50 campaigns.
+Total predicted profit keeps climbing with campaign count only because it's
+a sum over more customer profiles, not because each campaign is performing
+better.
 
-**Recommendation:** do not increase ad spend expecting more profit on its own
-— this model finds no evidence that more budget helps here. Redirect that
+**Recommendation:** do not increase ad spend expecting more profit on its
+own, and don't treat "more campaigns" as inherently more efficient either —
+this model finds no evidence that either lever helps here. Redirect that
 investment toward increasing lead volume and improving follow-up execution,
 the two clusters of features that actually drive predicted profit. Treat any
 real-world budget change as a hypothesis to validate with a controlled pilot,

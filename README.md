@@ -525,15 +525,34 @@ profitable at equal spend.
 - The strongest profit drivers are `num_leads`, `leads_answered`, and
   `leads_not_answered`, followed by follow-up-stage engagement and
   `customer_acquisition_cost`.
+- Spreading the same total budget across more campaigns doesn't create
+  efficiency either. Predicted profit **per campaign** stays roughly flat
+  (~₪13,000–14,300) from 5 through 50 campaigns, sampled from live data:
+
+  | Campaigns | Total predicted profit | Profit per campaign |
+  |-----------|------------------------|----------------------|
+  | 1         | ₪4,755                 | ₪4,755               |
+  | 5         | ₪65,051                | ₪13,010              |
+  | 10        | ₪143,094               | ₪14,309              |
+  | 25        | ₪324,846               | ₪12,994              |
+  | 50        | ₪665,037                | ₪13,301              |
+
+  The dashboard's "50 campaigns is the recommended strategy" read is mostly
+  an artifact of summing predicted profit over more customer profiles, not
+  a genuine per-campaign efficiency gain — the Budget Simulator's chart now
+  plots both series side by side so this doesn't read as a stronger signal
+  than it is.
 
 ### Recommendation
 
-Do not increase ad spend expecting more profit on its own. Redirect focus
-toward increasing lead volume and improving follow-up execution — the
-actual drivers this model identifies — rather than the size of the ad
-budget itself. Treat any real budget change as a hypothesis to validate
-with a controlled pilot, not a conclusion to roll out directly from this
-simulation.
+Do not increase ad spend expecting more profit on its own, and don't treat
+"more campaigns" as inherently more efficient either — only as a way to
+capture more total volume at roughly the same per-campaign return. Redirect
+focus toward increasing lead volume and improving follow-up execution — the
+actual drivers this model identifies — rather than the size or spread of
+the ad budget itself. Treat any real budget change as a hypothesis to
+validate with a controlled pilot, not a conclusion to roll out directly
+from this simulation.
 
 ## Database (Supabase)
 
