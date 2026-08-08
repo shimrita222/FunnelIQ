@@ -67,7 +67,11 @@ def generate_business_summary(stats_df: pd.DataFrame, call_stats: dict) -> dict:
             if calls_favor_closing
             else "closed deals take FEWER calls on average, meaning deals that need "
             "many calls are less likely to close, supporting the case for cutting "
-            "off effort earlier."
+            "off effort earlier. These two signals point in different directions - "
+            "the recommendation below weighs the calls-to-outcome comparison more "
+            "heavily, since it directly measures effort vs. conversion, while the "
+            "drop-off curve alone can't distinguish 'still valuable' from 'still "
+            "declining but ineffective.'"
         )
         + " Note: the data cannot attribute a specific close to a specific "
         "follow-up stage, so this conclusion rests on the retention curve and "

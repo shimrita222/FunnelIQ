@@ -148,6 +148,7 @@ def budget_optimization(
     by_campaign_count = simulate_by_campaign_count(
         _budget_bundle["model"], profiles, monthly_budget=request.monthly_budget
     )
+    by_campaign_count["profit_per_campaign"] = by_campaign_count["predicted_profit"] / by_campaign_count["n_campaigns"]
 
     budget_metadata = _model_metadata["budget_optimizer_model"]
     driver_directions = budget_metadata["driver_directions"]
