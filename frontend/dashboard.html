@@ -21,8 +21,21 @@
       --accent-orange: #f59e0b;
     }
     * { box-sizing: border-box; }
+    /* Segoe UI's bold weight can substitute a boxy fallback glyph for the ₪
+       sign (U+20AA) at larger sizes - pin just that character to a font
+       family with reliable ₪ coverage, leaving every other character on
+       the normal system-font stack. */
+    @font-face {
+      font-family: "AppFont";
+      src: local("Segoe UI");
+    }
+    @font-face {
+      font-family: "AppFont";
+      src: local("Arial");
+      unicode-range: U+20AA;
+    }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "AppFont", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       margin: 0;
@@ -44,6 +57,7 @@
     }
     .navbar .logo { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
     .navbar .logo span { color: var(--accent-blue); }
+    .navbar .logo .tagline { font-size: 12px; font-weight: 400; color: var(--text-dim); margin-left: 8px; letter-spacing: normal; }
     .navbar .user-area { display: flex; align-items: center; gap: 16px; font-size: 14px; color: var(--text-dim); }
     .navbar button {
       background: var(--surface-2);
@@ -71,6 +85,14 @@
       border-radius: 10px;
       padding: 16px;
     }
+    /* Purely rhythmic differentiation between the 4 KPIs, not a good/bad
+       judgment - no benchmark exists to justify coloring a value "good"
+       (e.g. red) or "bad" here, unlike the badges elsewhere that compare
+       against an actual threshold. */
+    .kpi-card:nth-child(1) { border-left: 3px solid var(--accent-blue); }
+    .kpi-card:nth-child(2) { border-left: 3px solid #a78bfa; }
+    .kpi-card:nth-child(3) { border-left: 3px solid var(--accent-orange); }
+    .kpi-card:nth-child(4) { border-left: 3px solid var(--accent-green); }
     .kpi-card .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
     .kpi-card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
 
@@ -100,7 +122,10 @@
     .skeleton-block { height: 200px; }
 
     /* Form */
-    .form-group { margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; padding-left: 10px; border-left: 3px solid transparent; }
+    .form-group:nth-of-type(1) { border-left-color: var(--accent-blue); }
+    .form-group:nth-of-type(2) { border-left-color: #a78bfa; }
+    .form-group:nth-of-type(3) { border-left-color: var(--accent-orange); }
     .form-group h3 {
       font-size: 12px;
       text-transform: uppercase;
@@ -187,9 +212,13 @@
     .insight-item { padding: 8px 12px; border-left: 3px solid; margin-bottom: 8px; font-size: 14px; border-radius: 0 6px 6px 0; background: var(--surface-2); }
     .insight-item.data-driven { border-left-color: var(--accent-blue); }
     .insight-item.general { border-left-color: var(--text-dim); }
+    .insight-item.highest-risk { border-left-color: var(--accent-red); }
+    .insight-item.highest-opportunity { border-left-color: var(--accent-green); }
     .insight-tag { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin-right: 6px; }
     .insight-tag.data-driven { color: var(--accent-blue); }
     .insight-tag.general { color: var(--text-dim); }
+    .insight-tag.highest-risk { color: var(--accent-red); }
+    .insight-tag.highest-opportunity { color: var(--accent-green); }
 
     /* Score progress bar */
     .progress-track {
@@ -251,7 +280,12 @@
     .slider-row .budget-readout { font-size: 20px; font-weight: 700; min-width: 110px; text-align: right; }
 
     canvas { max-height: 260px; }
-    .chart-container { position: relative; height: 440px; width: 100%; min-width: 0; overflow: hidden; }
+    /* Stretches to match the height of the table column next to it (the grid
+       row's natural height, via the default align-items: stretch on
+       .followup-grid) instead of a fixed height that can leave a gap under a
+       shorter chart or clip a taller table column. */
+    .followup-chart-col { display: flex; flex-direction: column; }
+    .chart-container { position: relative; flex: 1; min-height: 320px; width: 100%; min-width: 0; overflow: hidden; }
     .chart-container canvas { max-height: none; width: 100% !important; height: 100% !important; }
 
     @media (max-width: 900px) {
@@ -264,12 +298,13 @@
     @media (max-width: 520px) {
       .kpi-grid { grid-template-columns: 1fr; }
       .field-grid { grid-template-columns: 1fr; }
+      .navbar .logo .tagline { display: none; }
     }
   </style>
 </head>
 <body>
   <div class="navbar">
-    <div class="logo">Funnel<span>IQ</span></div>
+    <div class="logo">Funnel<span>IQ</span> <span class="tagline">Marketing Funnel Analytics &amp; Optimization</span></div>
     <div class="user-area">
       <span id="user-email">…</span>
       <button id="signout">Sign Out</button>
@@ -280,13 +315,13 @@
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi-card"><div class="label">Avg. Customer Lifetime</div><div class="value skeleton skeleton-line" id="kpi-lifetime"></div></div>
       <div class="kpi-card"><div class="label">Avg. Upsell Rate</div><div class="value skeleton skeleton-line" id="kpi-upsell"></div></div>
-      <div class="kpi-card"><div class="label">Avg. CAC</div><div class="value skeleton skeleton-line" id="kpi-cac"></div></div>
+      <div class="kpi-card"><div class="label">Avg. Acquisition Cost</div><div class="value skeleton skeleton-line" id="kpi-cac"></div></div>
       <div class="kpi-card"><div class="label">Predicted Monthly Profit</div><div class="value skeleton skeleton-line" id="kpi-profit"></div></div>
     </div>
 
     <div class="card">
-      <h2>Customer Predictor</h2>
-      <p class="subtitle">Enter a customer's funnel data to predict their lifetime, upsell probability, and super-customer score.</p>
+      <h2>Campaign Profile Predictor</h2>
+      <p class="subtitle">Enter a campaign profile's funnel data to predict customer lifetime, upsell probability, and super-customer score for leads from that profile.</p>
       <form id="prediction-form">
         <div class="form-group">
           <h3>Lead Funnel</h3>
@@ -300,20 +335,20 @@
         <div class="form-group">
           <h3>Follow-ups Remaining</h3>
           <div class="field-grid">
-            <div class="field"><label for="followup_1">Round 1</label><input type="number" id="followup_1" value="70" step="any" /></div>
-            <div class="field"><label for="followup_2">Round 2</label><input type="number" id="followup_2" value="60" step="any" /></div>
-            <div class="field"><label for="followup_3">Round 3</label><input type="number" id="followup_3" value="50" step="any" /></div>
-            <div class="field"><label for="followup_4">Round 4</label><input type="number" id="followup_4" value="40" step="any" /></div>
+            <div class="field"><label for="followup_1">Follow-up 1</label><input type="number" id="followup_1" value="70" step="any" /></div>
+            <div class="field"><label for="followup_2">Follow-up 2</label><input type="number" id="followup_2" value="60" step="any" /></div>
+            <div class="field"><label for="followup_3">Follow-up 3</label><input type="number" id="followup_3" value="50" step="any" /></div>
+            <div class="field"><label for="followup_4">Follow-up 4</label><input type="number" id="followup_4" value="40" step="any" /></div>
           </div>
           <div class="field-grid" style="margin-top: 12px;">
-            <div class="field"><label for="followup_5">Round 5</label><input type="number" id="followup_5" value="30" step="any" /></div>
+            <div class="field"><label for="followup_5">Follow-up 5</label><input type="number" id="followup_5" value="30" step="any" /></div>
           </div>
         </div>
         <div class="form-group">
           <h3>Closing &amp; Cost</h3>
           <div class="field-grid">
-            <div class="field"><label for="not_closed">Not closed</label><input type="number" id="not_closed" value="15" step="any" /></div>
-            <div class="field"><label for="closed">Closed</label><input type="number" id="closed" value="25" step="any" /></div>
+            <div class="field"><label for="not_closed">Leads not closed</label><input type="number" id="not_closed" value="15" step="any" /></div>
+            <div class="field"><label for="closed">Leads closed</label><input type="number" id="closed" value="25" step="any" /></div>
             <div class="field"><label for="calls_to_closed">Avg calls to close</label><input type="number" id="calls_to_closed" value="3.5" step="any" /></div>
             <div class="field"><label for="calls_to_not_closed">Avg calls (not closed)</label><input type="number" id="calls_to_not_closed" value="4.0" step="any" /></div>
           </div>
@@ -328,12 +363,14 @@
       <div class="result-grid" id="prediction-results" style="display: none;">
         <div class="result-card">
           <div class="label">Predicted Lifetime</div>
+          <div style="color: var(--text-dim); font-size: 11px; margin-top: 2px;">Expected months of active engagement</div>
           <div class="value" id="result-lifetime">—</div>
           <div class="sub">months</div>
           <p id="result-lifetime-meaning" style="color: var(--text-dim); font-size: 13px; margin-top: 8px;"></p>
         </div>
         <div class="result-card">
           <div class="label">Upsell Probability</div>
+          <div style="color: var(--text-dim); font-size: 11px; margin-top: 2px;">Likelihood to accept an upsell offer</div>
           <div class="value" id="result-upsell">—</div>
           <div id="result-upsell-badge"></div>
           <p id="result-upsell-meaning" style="color: var(--text-dim); font-size: 13px; margin-top: 8px;"></p>
@@ -359,7 +396,7 @@
         <div class="stat"><div class="label">Avg calls (not closed)</div><div class="value skeleton skeleton-line" id="stat-calls-not-closed"></div></div>
       </div>
       <div class="followup-grid">
-        <div>
+        <div class="followup-chart-col">
           <div class="chart-container" id="followup-chart-container">
             <div class="skeleton skeleton-block" id="followup-chart-skeleton" style="height: 100%;"></div>
             <canvas id="followup-chart" style="display: none;"></canvas>
@@ -382,7 +419,7 @@
 
     <div class="card">
       <h2>Budget Simulator</h2>
-      <p class="subtitle">Compare allocation strategies for the monthly ad budget across real customer profiles.</p>
+      <p class="subtitle">Compare allocation strategies for the monthly ad budget across real campaign profiles.</p>
 
       <div class="stat-row" id="budget-executive-summary" style="display: none;">
         <div class="stat"><div class="label">Recommended Strategy</div><div class="value" id="exec-strategy">—</div></div>
@@ -395,6 +432,8 @@
         <span id="exec-takeaway-text"></span>
       </div>
 
+      <h3 class="mini-heading">Total Monthly Ad Budget</h3>
+      <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 8px 0;">The total amount to spend on advertising this month, before it gets split across campaigns.</p>
       <div class="slider-row">
         <input type="range" id="monthly_budget" min="10000" max="150000" step="1000" value="50000" />
         <div class="budget-readout" id="budget-readout">₪50,000</div>
@@ -402,12 +441,20 @@
       <button type="button" class="btn-primary" id="run-budget-optimization">Run Simulation</button>
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
+      <p id="budget-chart-note" style="display: none; color: var(--text-dim); font-size: 12px; margin-top: 6px;">Predicted Profit is a sum across all campaigns in that option, so it naturally grows with more campaigns. Profit per Campaign shows whether each individual campaign is actually more efficient — a flatter line means the option with the highest total isn't necessarily the better strategy, just the larger one.</p>
       <h3 class="mini-heading" id="budget-takeaway-heading" style="display: none; margin-top: 16px;">Key Takeaway</h3>
       <div class="callout" id="budget-key-takeaway" style="display: none;"></div>
       <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
       <div id="budget-table-container"></div>
 
       <div id="budget-bi-sections" style="display: none;">
+        <h3 class="mini-heading" style="margin-top: 24px;">Model Reliability</h3>
+        <div id="bi-model-reliability"></div>
+
+        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation Strength</h3>
+        <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;">Based on comparing different campaign-count options (1 / 5 / 10 / 25 / 50) at a fixed total budget.</p>
+        <div id="bi-recommendation-strength"></div>
+
         <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis</h3>
         <div class="callout">
           <p><strong>Key Business Insight</strong><br /><span id="bi-insight"></span></p>
@@ -416,14 +463,9 @@
         </div>
 
         <h3 class="mini-heading" style="margin-top: 24px;">💡 Recommendation</h3>
+        <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;">Based on comparing total-budget-size scenarios (Equal / +20% / −20% / Weighted allocation) at a fixed number of campaigns.</p>
         <div class="callout" id="bi-recommendation"></div>
         <ul class="why-list" id="bi-why"></ul>
-
-        <h3 class="mini-heading" style="margin-top: 24px;">Model Reliability</h3>
-        <div id="bi-model-reliability"></div>
-
-        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation Strength</h3>
-        <div id="bi-recommendation-strength"></div>
 
         <h3 class="mini-heading" style="margin-top: 24px;">Top Profit Drivers</h3>
         <p id="bi-top-drivers-note" style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;"></p>
@@ -528,7 +570,7 @@
       container.appendChild(table);
     }
 
-    // ---------- Customer Predictor ----------
+    // ---------- Campaign Profile Predictor ----------
     let avgLtvMonths = null;
 
     document.getElementById("predict-btn").addEventListener("click", async () => {
@@ -549,11 +591,13 @@
         const lifetimeMeaningEl = document.getElementById("result-lifetime-meaning");
         if (avgLtvMonths) {
           const diffPct = ((lifetime.predicted_ltv_months - avgLtvMonths) / avgLtvMonths) * 100;
-          lifetimeMeaningEl.textContent = diffPct >= 0
-            ? `${diffPct.toFixed(0)}% above the average customer (${avgLtvMonths.toFixed(1)} mo) — a high-retention profile.`
-            : `${Math.abs(diffPct).toFixed(0)}% below the average customer (${avgLtvMonths.toFixed(1)} mo) — consider a retention touchpoint.`;
+          lifetimeMeaningEl.textContent = Math.abs(diffPct) < 5
+            ? `About average (${diffPct >= 0 ? diffPct.toFixed(0) + "% above" : Math.abs(diffPct).toFixed(0) + "% below"} ${avgLtvMonths.toFixed(1)} mo) — no action needed.`
+            : diffPct >= 0
+              ? `${diffPct.toFixed(0)}% above the average customer (${avgLtvMonths.toFixed(1)} mo) — a high-retention profile.`
+              : `${Math.abs(diffPct).toFixed(0)}% below the average customer (${avgLtvMonths.toFixed(1)} mo) — consider a retention touchpoint.`;
         } else {
-          lifetimeMeaningEl.textContent = "Estimated months this customer is expected to stay active.";
+          lifetimeMeaningEl.textContent = "Estimated months a customer from this profile is expected to stay active.";
         }
 
         const upsellPct = (upsell.upsell_probability * 100).toFixed(1);
@@ -563,8 +607,8 @@
           ? '<span class="badge badge-orange">Flag for outreach</span>'
           : '<span class="badge badge-green">Low priority</span>';
         document.getElementById("result-upsell-meaning").textContent = upsell.predicted_upsell
-          ? "Above the model's upsell threshold — prioritize this customer for upsell outreach."
-          : "Below the model's upsell threshold — deprioritize active upsell outreach for now.";
+          ? "Above the model's 50% upsell threshold — prioritize customers from this profile for upsell outreach."
+          : "Below the model's 50% upsell threshold — skip upsell outreach for now, and focus effort on higher-probability customers.";
 
         const tier = superCustomer.tier;
         const color = TIER_HEX[tier] || "#3b82f6";
@@ -574,8 +618,8 @@
         document.getElementById("result-gauge-value").textContent = superCustomer.score;
         document.getElementById("result-tier").textContent = tier + " tier";
         const tierMeaning = {
-          High: "Top-tier customer profile — a strong candidate for VIP treatment, loyalty programs, or referral requests.",
-          Medium: "Solid customer profile — standard nurture and retention efforts are appropriate.",
+          High: "Top-tier profile — a strong candidate for VIP treatment, loyalty programs, or referral requests.",
+          Medium: "Solid profile — standard nurture and retention efforts are appropriate.",
           Low: "Lower engagement/value profile — monitor for churn risk and consider extra engagement effort.",
         };
         document.getElementById("result-tier-meaning").textContent = tierMeaning[tier] || "";
@@ -789,25 +833,46 @@
           },
         };
 
+        document.getElementById("budget-chart-note").style.display = "block";
+
         if (budgetChart) budgetChart.destroy();
         budgetChart = new Chart(canvas, {
-          type: "bar",
           data: {
             labels: byCount.map((s) => `${s.n_campaigns} campaign${s.n_campaigns === 1 ? "" : "s"}`),
-            datasets: [{
-              label: "Predicted Profit",
-              data: byCount.map((s) => s.predicted_profit),
-              backgroundColor: colors,
-              borderRadius: 6,
-            }],
+            datasets: [
+              {
+                type: "bar",
+                label: "Predicted Profit",
+                data: byCount.map((s) => s.predicted_profit),
+                yAxisID: "y",
+                backgroundColor: colors,
+                borderRadius: 6,
+              },
+              {
+                type: "line",
+                label: "Profit per Campaign",
+                data: byCount.map((s) => s.profit_per_campaign),
+                yAxisID: "y1",
+                borderColor: "#a78bfa",
+                backgroundColor: "#a78bfa",
+                pointBackgroundColor: "#a78bfa",
+                tension: 0.3,
+              },
+            ],
           },
           options: {
             responsive: true,
             layout: { padding: { top: 24 } },
-            plugins: { legend: { display: false } },
+            plugins: { legend: { display: true, labels: { color: "#8b92a5" } } },
             scales: {
               x: { ticks: { color: "#8b92a5" }, grid: { display: false } },
-              y: { ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+              y: { position: "left", ticks: { color: "#8b92a5" }, grid: { color: "#232838" } },
+              y1: {
+                position: "right",
+                ticks: { color: "#8b92a5", callback: (v) => fmtMoney(v) },
+                grid: { display: false },
+                min: 0,
+              },
             },
           },
           plugins: [recommendedLabelPlugin],
@@ -964,14 +1029,15 @@
         driversEl.appendChild(row);
       });
 
-      function renderInsightList(containerId, group, tagLabels) {
+      function renderInsightList(containerId, group, tagLabels, highestClass) {
         const el = document.getElementById(containerId);
         el.innerHTML = "";
         group.data_driven.forEach((text, index) => {
+          const variantClass = index === 0 && highestClass ? highestClass : "data-driven";
           const div = document.createElement("div");
-          div.className = "insight-item data-driven";
+          div.className = `insight-item ${variantClass}`;
           const tag = document.createElement("span");
-          tag.className = "insight-tag data-driven";
+          tag.className = `insight-tag ${variantClass}`;
           tag.textContent = tagLabels ? tagLabels.dataDriven(index) : "Data-Driven";
           div.appendChild(tag);
           div.appendChild(document.createTextNode(text));
@@ -991,11 +1057,11 @@
       renderInsightList("bi-risks", result.risks, {
         dataDriven: (index) => (index === 0 ? "Highest Risk" : "Secondary Risk"),
         general: "General Consideration",
-      });
+      }, "highest-risk");
       renderInsightList("bi-opportunities", result.opportunities, {
         dataDriven: (index) => (index === 0 ? "Highest Opportunity" : "Secondary Opportunity"),
         general: "General Recommendation",
-      });
+      }, "highest-opportunity");
     }
 
     document.getElementById("run-budget-optimization").addEventListener("click", runBudgetOptimization);
