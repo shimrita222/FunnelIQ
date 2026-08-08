@@ -107,6 +107,50 @@
     .card h2 { margin: 0 0 4px 0; font-size: 18px; }
     .card .subtitle { color: var(--text-dim); font-size: 13px; margin: 0 0 20px 0; }
 
+    /* Help tooltip icon */
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      margin-left: 6px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 700;
+      cursor: help;
+      position: relative;
+      vertical-align: middle;
+    }
+    .help-icon:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+    .help-tip {
+      visibility: hidden;
+      opacity: 0;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 240px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1.4;
+      color: var(--text);
+      text-align: left;
+      text-transform: none;
+      letter-spacing: normal;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+      transition: opacity 0.15s ease;
+      z-index: 30;
+    }
+    .help-icon:hover .help-tip { visibility: visible; opacity: 1; }
+
     /* Skeleton loading */
     .skeleton {
       background: linear-gradient(90deg, var(--surface-2) 25%, #1e2432 37%, var(--surface-2) 63%);
@@ -313,18 +357,18 @@
 
   <div class="page">
     <div class="kpi-grid" id="kpi-grid">
-      <div class="kpi-card"><div class="label">Avg. Customer Lifetime</div><div class="value skeleton skeleton-line" id="kpi-lifetime"></div></div>
-      <div class="kpi-card"><div class="label">Avg. Upsell Rate</div><div class="value skeleton skeleton-line" id="kpi-upsell"></div></div>
-      <div class="kpi-card"><div class="label">Avg. Acquisition Cost</div><div class="value skeleton skeleton-line" id="kpi-cac"></div></div>
-      <div class="kpi-card"><div class="label">Predicted Monthly Profit</div><div class="value skeleton skeleton-line" id="kpi-profit"></div></div>
+      <div class="kpi-card"><div class="label">Avg. Customer Lifetime<span class="help-icon">?<span class="help-tip">Average number of months a customer is predicted to remain actively engaged, based on the trained lifetime model.</span></span></div><div class="value skeleton skeleton-line" id="kpi-lifetime"></div></div>
+      <div class="kpi-card"><div class="label">Avg. Upsell Rate<span class="help-icon">?<span class="help-tip">Share of customers the model predicts are likely to accept an upsell offer.</span></span></div><div class="value skeleton skeleton-line" id="kpi-upsell"></div></div>
+      <div class="kpi-card"><div class="label">Avg. Acquisition Cost<span class="help-icon">?<span class="help-tip">Average cost (₪) to acquire a single customer across all leads in the dataset.</span></span></div><div class="value skeleton skeleton-line" id="kpi-cac"></div></div>
+      <div class="kpi-card"><div class="label">Predicted Monthly Profit<span class="help-icon">?<span class="help-tip">Model's predicted total profit for the month under an equal-budget allocation strategy.</span></span></div><div class="value skeleton skeleton-line" id="kpi-profit"></div></div>
     </div>
 
     <div class="card">
-      <h2>Campaign Profile Predictor</h2>
+      <h2>Campaign Profile Predictor<span class="help-icon">?<span class="help-tip">Enter a campaign profile's funnel numbers to get model predictions for its expected customer lifetime, upsell probability, and referral (super-customer) potential.</span></span></h2>
       <p class="subtitle">Enter a campaign profile's funnel data to predict customer lifetime, upsell probability, and super-customer score for leads from that profile.</p>
       <form id="prediction-form">
         <div class="form-group">
-          <h3>Lead Funnel</h3>
+          <h3>Lead Funnel<span class="help-icon">?<span class="help-tip">Ad spend and how many leads were reached vs. answered for this campaign profile.</span></span></h3>
           <div class="field-grid">
             <div class="field"><label for="ad_budget">Ad budget (₪)</label><input type="number" id="ad_budget" value="5000" step="any" /></div>
             <div class="field"><label for="num_leads">Total leads</label><input type="number" id="num_leads" value="100" step="any" /></div>
@@ -333,7 +377,7 @@
           </div>
         </div>
         <div class="form-group">
-          <h3>Follow-ups Remaining</h3>
+          <h3>Follow-ups Remaining<span class="help-icon">?<span class="help-tip">How many leads were still active at each of the five follow-up call stages.</span></span></h3>
           <div class="field-grid">
             <div class="field"><label for="followup_1">Follow-up 1</label><input type="number" id="followup_1" value="70" step="any" /></div>
             <div class="field"><label for="followup_2">Follow-up 2</label><input type="number" id="followup_2" value="60" step="any" /></div>
@@ -345,7 +389,7 @@
           </div>
         </div>
         <div class="form-group">
-          <h3>Closing &amp; Cost</h3>
+          <h3>Closing &amp; Cost<span class="help-icon">?<span class="help-tip">Final closing outcome, calls invested, and the acquisition cost for this profile.</span></span></h3>
           <div class="field-grid">
             <div class="field"><label for="not_closed">Leads not closed</label><input type="number" id="not_closed" value="15" step="any" /></div>
             <div class="field"><label for="closed">Leads closed</label><input type="number" id="closed" value="25" step="any" /></div>
@@ -388,7 +432,7 @@
     </div>
 
     <div class="card">
-      <h2>The Follow-up Paradox</h2>
+      <h2>The Follow-up Paradox<span class="help-icon">?<span class="help-tip">Shows how many leads drop out at each follow-up stage, and whether continuing to call leads past the 3rd attempt is still worthwhile.</span></span></h2>
       <p class="subtitle">Stage-by-stage dropout across the funnel</p>
       <div class="stat-row" id="followup-stats">
         <div class="stat"><div class="label">Customers (live)</div><div class="value skeleton skeleton-line" id="stat-customers"></div></div>
@@ -404,10 +448,10 @@
           <p style="color: var(--text-dim); font-size: 12px; margin-top: 6px;">Red bars mark drop-off past the 3rd call — the range in question when weighing whether late follow-ups are worth the effort.</p>
         </div>
         <div>
-          <h3 class="mini-heading">Dropout by Stage</h3>
+          <h3 class="mini-heading">Dropout by Stage<span class="help-icon">?<span class="help-tip">Remaining leads and drop-off rate at each follow-up stage, from first contact through the final follow-up.</span></span></h3>
           <div class="skeleton skeleton-line" id="followup-table-skeleton" style="height: 140px;"></div>
           <div id="followup-table-container"></div>
-          <h3 class="mini-heading" style="margin-top: 20px;">Conversion by Budget Tier</h3>
+          <h3 class="mini-heading" style="margin-top: 20px;">Conversion by Budget Tier<span class="help-icon">?<span class="help-tip">Average conversion rate for campaigns grouped into Low/Mid/High ad-budget tiers.</span></span></h3>
           <div class="skeleton skeleton-line" id="budget-tier-table-skeleton" style="height: 100px;"></div>
           <div id="budget-tier-table-container"></div>
           <p style="color: var(--text-dim); font-size: 12px; margin-top: 6px;">"Gap" covers budgets between ₪1,500–2,000, which fall outside the Low/Mid tier definitions — shown separately for transparency rather than folded into a neighboring tier.</p>
@@ -418,7 +462,7 @@
     </div>
 
     <div class="card">
-      <h2>Budget Simulator</h2>
+      <h2>Budget Simulator<span class="help-icon">?<span class="help-tip">Simulates different ways to split the monthly ad budget across campaigns, and recommends the allocation strategy with the highest predicted profit.</span></span></h2>
       <p class="subtitle">Compare allocation strategies for the monthly ad budget across real campaign profiles.</p>
 
       <div class="stat-row" id="budget-executive-summary" style="display: none;">
@@ -432,7 +476,7 @@
         <span id="exec-takeaway-text"></span>
       </div>
 
-      <h3 class="mini-heading">Total Monthly Ad Budget</h3>
+      <h3 class="mini-heading">Total Monthly Ad Budget<span class="help-icon">?<span class="help-tip">The total ₪ amount to spend on advertising this month, before the simulator splits it across campaigns.</span></span></h3>
       <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 8px 0;">The total amount to spend on advertising this month, before it gets split across campaigns.</p>
       <div class="slider-row">
         <input type="range" id="monthly_budget" min="10000" max="150000" step="1000" value="50000" />
@@ -442,39 +486,39 @@
       <p id="budget-summary" style="color: var(--text-dim); font-size: 13px; margin-top: 12px;"></p>
       <canvas id="budget-chart" style="display: none;"></canvas>
       <p id="budget-chart-note" style="display: none; color: var(--text-dim); font-size: 12px; margin-top: 6px;">Predicted Profit is a sum across all campaigns in that option, so it naturally grows with more campaigns. Profit per Campaign shows whether each individual campaign is actually more efficient — a flatter line means the option with the highest total isn't necessarily the better strategy, just the larger one.</p>
-      <h3 class="mini-heading" id="budget-takeaway-heading" style="display: none; margin-top: 16px;">Key Takeaway</h3>
+      <h3 class="mini-heading" id="budget-takeaway-heading" style="display: none; margin-top: 16px;">Key Takeaway<span class="help-icon">?<span class="help-tip">The simulator's plain-language summary of which campaign-count option performed best and why.</span></span></h3>
       <div class="callout" id="budget-key-takeaway" style="display: none;"></div>
-      <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail</h3>
+      <h3 class="mini-heading" id="budget-table-heading" style="display: none; margin-top: 20px;">Allocation Strategy Detail<span class="help-icon">?<span class="help-tip">Full breakdown of predicted profit and ROI for each budget-allocation scenario that was simulated.</span></span></h3>
       <div id="budget-table-container"></div>
 
       <div id="budget-bi-sections" style="display: none;">
-        <h3 class="mini-heading" style="margin-top: 24px;">Model Reliability</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Model Reliability<span class="help-icon">?<span class="help-tip">How trustworthy the underlying prediction model is, based on its fit quality on historical data.</span></span></h3>
         <div id="bi-model-reliability"></div>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation Strength</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Recommendation Strength<span class="help-icon">?<span class="help-tip">How large the profit advantage of the recommended option is over the alternatives — the bigger the gap, the more confident the recommendation.</span></span></h3>
         <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;">Based on comparing different campaign-count options (1 / 5 / 10 / 25 / 50) at a fixed total budget.</p>
         <div id="bi-recommendation-strength"></div>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Analysis<span class="help-icon">?<span class="help-tip">The model's plain-language interpretation of what's driving the recommended strategy's results.</span></span></h3>
         <div class="callout">
           <p><strong>Key Business Insight</strong><br /><span id="bi-insight"></span></p>
           <p><strong>Observed Pattern</strong><br /><span id="bi-observation"></span></p>
           <p style="margin-bottom: 0;"><strong>Business Implication</strong><br /><span id="bi-impact"></span></p>
         </div>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">💡 Recommendation</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">💡 Recommendation<span class="help-icon">?<span class="help-tip">The specific allocation strategy the model recommends, along with the reasoning behind it.</span></span></h3>
         <p style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;">Based on comparing total-budget-size scenarios (Equal / +20% / −20% / Weighted allocation) at a fixed number of campaigns.</p>
         <div class="callout" id="bi-recommendation"></div>
         <ul class="why-list" id="bi-why"></ul>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">Top Profit Drivers</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Top Profit Drivers<span class="help-icon">?<span class="help-tip">The campaign inputs that most influence predicted profit, ranked by their share of the model's total predictive importance.</span></span></h3>
         <p id="bi-top-drivers-note" style="color: var(--text-dim); font-size: 12px; margin: 0 0 4px 0;"></p>
         <div id="bi-top-drivers"></div>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">Business Risks</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Risks<span class="help-icon">?<span class="help-tip">Potential downsides or failure points to watch for if this recommendation is followed.</span></span></h3>
         <div id="bi-risks"></div>
 
-        <h3 class="mini-heading" style="margin-top: 24px;">Business Opportunities</h3>
+        <h3 class="mini-heading" style="margin-top: 24px;">Business Opportunities<span class="help-icon">?<span class="help-tip">Additional upside potential the model identified beyond the core recommendation.</span></span></h3>
         <div id="bi-opportunities"></div>
       </div>
 

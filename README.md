@@ -5,7 +5,7 @@ login-gated intelligence tool: predicting customer lifetime, upsell probability,
 and a 0–100 "super customer" score, plus data-driven recommendations on
 follow-up policy and ad budget allocation.
 
-Live URL: https://funnelmarketingdata-production.up.railway.app
+Live URL: https://funnelmarketingdata-production.up.railway.app (redirects to `/login`)
 
 **Demo login** (read-only access, safe to share — the underlying data is the
 synthetic `funnel_marketing_data.csv`, no real customer data):
@@ -564,6 +564,7 @@ from this simulation.
 
 ## API
 
+- `GET /` — redirects to `/login`
 - `GET /health` — health check
 - `GET /login`, `GET /dashboard` — the frontend pages (see Authentication below)
 - `GET /customers?limit=50&offset=0` — paginated customer records from Supabase (auth required)
